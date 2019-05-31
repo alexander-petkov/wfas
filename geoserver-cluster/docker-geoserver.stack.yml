@@ -1,0 +1,147 @@
+version: "3.7"
+ 
+services:
+  broker: 
+    image: localhost:5000/activemqbroker:2.15.1
+    ports:
+      - target: 61666
+        published: 61666
+        protocol: tcp
+        mode: host 
+      - target: 8080
+        published: 8099
+        protocol: tcp
+        mode: host 
+    deploy:
+      restart_policy:
+        condition: any
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      update_config:
+        delay: 2s
+      labels:
+        - "traefik.docker.network=net"
+        - "traefik.frontend.rule=PathPrefix:/activemq;"
+        - "traefik.port=8099"
+  slave1:
+    image: localhost:5000/geoserver:2.15.1
+    depends_on:
+      - broker
+    ports:
+      - target: 8080
+        published: 8081
+        protocol: tcp
+        mode: host 
+    volumes:
+      - type: bind
+        source: /mnt/cephfs/geoserver/data_dir
+        target: /opt/geoserver/data_dir
+        #- type: bind
+        #source: /mnt/cephfs/geoserver/extensions
+        #target: /var/local/geoserver-exts
+      - type: bind
+        source: /mnt/cephfs
+        target: /mnt/cephfs
+    environment:
+      - CLUSTER_CONFIG_DIR=/opt/geoserver/data_dir/cluster/slave1
+      - GEOSERVER_LOG_LOCATION=/opt/geoserver/logs/geoserver.log
+      - COOKIE=JSESSIONID prefix
+      - GWC_DISKQUOTA_DISABLED="true"
+      - GWC_METASTORE_DISABLED="true"
+      - instanceName=slave1
+    deploy:
+      restart_policy:
+        condition: any
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == worker]
+      update_config:
+        delay: 2s
+      labels:
+        - "traefik.docker.network=net"
+        - "traefik.frontend.rule=PathPrefix:/geoserver;"
+        - "traefik.port=8080"
+  slave2:
+    image: localhost:5000/geoserver:2.15.1
+    depends_on:
+      - broker
+    ports:
+      - target: 8080
+        published: 8081
+        protocol: tcp
+        mode: host 
+    volumes:
+      - type: bind
+        source: /mnt/cephfs/geoserver/data_dir
+        target: /opt/geoserver/data_dir
+        #- type: bind
+        #source: /mnt/cephfs/geoserver/extensions
+        #target: /var/local/geoserver-exts
+      - type: bind
+        source: /mnt/cephfs
+        target: /mnt/cephfs
+    environment:
+      - CLUSTER_CONFIG_DIR=/opt/geoserver/data_dir/cluster/slave1
+      - GEOSERVER_LOG_LOCATION=/opt/geoserver/logs/geoserver.log
+      - COOKIE=JSESSIONID prefix
+      - GWC_DISKQUOTA_DISABLED="true"
+      - GWC_METASTORE_DISABLED="true"
+      - instanceName=slave2
+    deploy:
+      restart_policy:
+        condition: any
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == worker]
+      update_config:
+        delay: 2s
+      labels:
+        - "traefik.docker.network=net"
+        - "traefik.frontend.rule=PathPrefix:/geoserver;"
+        - "traefik.port=8080"
+ 
+  geoserver_adm:
+    image: localhost:5000/geoserver:2.15.1
+    depends_on:
+      - broker
+    ports:
+      - target: 8080
+        published: 8081
+        protocol: tcp
+        mode: host 
+    volumes:
+      - type: bind
+        source: /mnt/cephfs/geoserver/data_dir
+        target: /opt/geoserver/data_dir
+        #- type: bind
+        #source: /mnt/cephfs/geoserver/extensions
+        #target: /var/local/geoserver-exts
+      - type: bind
+        source: /mnt/cephfs
+        target: /mnt/cephfs
+    environment:
+      - CLUSTER_CONFIG_DIR=/opt/geoserver/data_dir/cluster/master
+      - GEOSERVER_LOG_LOCATION=/opt/geoserver/logs/geoserver.log
+      - COOKIE=JSESSIONID prefix
+      - GWC_DISKQUOTA_DISABLED="true"
+      - GWC_METASTORE_DISABLED="true"
+      - instanceName=master
+    deploy:
+      restart_policy:
+        condition: any
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+      update_config:
+        delay: 2s
+      labels:
+        - "traefik.docker.network=net"
+        - "traefik.port=8081"
+        - "traefik.frontend.rule=PathPrefix:/geoserver_adm;"
+        - "traefik.backend.loadbalancer.sticky=true"
+
