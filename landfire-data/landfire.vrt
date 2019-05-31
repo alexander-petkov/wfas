@@ -1,0 +1,167 @@
+<VRTDataset rasterXSize="154667" rasterYSize="100000">
+  <SRS>PROJCS["unnamed",GEOGCS["NAD83",DATUM["North_American_Datum_1983",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],TOWGS84[0,0,0,0,0,0,0],AUTHORITY["EPSG","6269"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9108"]],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["standard_parallel_1",29.5],PARAMETER["standard_parallel_2",45.5],PARAMETER["latitude_of_center",23],PARAMETER["longitude_of_center",-96],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["METERS",1]]</SRS>
+  <GeoTransform> -2.3624250000000000e+06,  3.0000000000000000e+01,  0.0000000000000000e+00,  3.1774350000000000e+06,  0.0000000000000000e+00, -3.0000000000000000e+01</GeoTransform>
+  <VRTRasterBand dataType="Int16" band="1">
+    <Metadata>
+      <MDI key="STATISTICS_APPROXIMATE">YES</MDI>
+      <MDI key="STATISTICS_MAXIMUM">4415</MDI>
+      <MDI key="STATISTICS_MEAN">757.86325365755</MDI>
+      <MDI key="STATISTICS_MINIMUM">-113</MDI>
+      <MDI key="STATISTICS_STDDEV">729.88806415468</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">58.05</MDI>
+    </Metadata>
+    <NoDataValue>-32768</NoDataValue>
+    <HideNoDataValue>1</HideNoDataValue>
+    <ColorInterp>Red</ColorInterp>
+    <Overview>
+      <SourceFilename relativeToVRT="1">US_DEM_2016_02192019/Grid/us_dem_2016.ovr</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </Overview>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">US_DEM_2016_02192019/Grid/us_dem_2016</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="154667" RasterYSize="100000" DataType="Int32" BlockXSize="256" BlockYSize="16" />
+      <SrcRect xOff="0" yOff="0" xSize="154667" ySize="100000" />
+      <DstRect xOff="0" yOff="0" xSize="154667" ySize="100000" />
+      <NODATA>-32768</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="2">
+    <Metadata>
+      <MDI key="STATISTICS_APPROXIMATE">YES</MDI>
+      <MDI key="STATISTICS_MAXIMUM">128</MDI>
+      <MDI key="STATISTICS_MEAN">56.737909076215</MDI>
+      <MDI key="STATISTICS_MINIMUM">0</MDI>
+      <MDI key="STATISTICS_STDDEV">60.857606199159</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">100</MDI>
+    </Metadata>
+    <NoDataValue>255</NoDataValue>
+    <HideNoDataValue>1</HideNoDataValue>
+    <ColorInterp>Green</ColorInterp>
+    <Overview>
+      <SourceFilename relativeToVRT="1">US_SLP_Deg_2016_02192019/Grid/us_slpd_2016.ovr</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </Overview>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">US_SLP_Deg_2016_02192019/Grid/us_slpd_2016</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="154667" RasterYSize="100000" DataType="Byte" BlockXSize="256" BlockYSize="16" />
+      <SrcRect xOff="0" yOff="0" xSize="154667" ySize="100000" />
+      <DstRect xOff="0" yOff="0" xSize="154667" ySize="100000" />
+      <NODATA>255</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="3">
+    <Metadata>
+      <MDI key="STATISTICS_APPROXIMATE">YES</MDI>
+      <MDI key="STATISTICS_MAXIMUM">359</MDI>
+      <MDI key="STATISTICS_MEAN">103.83353876312</MDI>
+      <MDI key="STATISTICS_MINIMUM">-1</MDI>
+      <MDI key="STATISTICS_STDDEV">117.63212191426</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">58.05</MDI>
+    </Metadata>
+    <NoDataValue>-32768</NoDataValue>
+    <HideNoDataValue>1</HideNoDataValue>
+    <ColorInterp>Blue</ColorInterp>
+    <Overview>
+      <SourceFilename relativeToVRT="1">US_ASP_2016_02192019/Grid/us_asp_2016.ovr</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </Overview>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">US_ASP_2016_02192019/Grid/us_asp_2016</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="154667" RasterYSize="100000" DataType="Int16" BlockXSize="256" BlockYSize="16" />
+      <SrcRect xOff="0" yOff="0" xSize="154667" ySize="100000" />
+      <DstRect xOff="0" yOff="0" xSize="154667" ySize="100000" />
+      <NODATA>-32768</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="4">
+    <Metadata>
+      <MDI key="STATISTICS_APPROXIMATE">YES</MDI>
+      <MDI key="STATISTICS_MAXIMUM">203</MDI>
+      <MDI key="STATISTICS_MEAN">-3939.3219546316</MDI>
+      <MDI key="STATISTICS_MINIMUM">-9999</MDI>
+      <MDI key="STATISTICS_STDDEV">4963.1156698519</MDI>
+      <MDI key="STATISTICS_VALID_PERCENT">100</MDI>
+    </Metadata>
+    <NoDataValue>-9999</NoDataValue>
+    <HideNoDataValue>1</HideNoDataValue>
+    <Overview>
+      <SourceFilename relativeToVRT="1">US_140FBFM40_20180618/Grid/us_140fbfm40.ovr</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </Overview>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">US_140FBFM40_20180618/Grid/us_140fbfm40</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="154208" RasterYSize="97283" DataType="Int16" BlockXSize="256" BlockYSize="16" />
+      <SrcRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <DstRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <NODATA>-9999</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="5">
+    <NoDataValue>-9999</NoDataValue>
+    <HideNoDataValue>1</HideNoDataValue>
+    <Overview>
+      <SourceFilename relativeToVRT="1">US_140CC_20180620/Grid/us_140cc.ovr</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </Overview>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">US_140CC_20180620/Grid/us_140cc</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="154208" RasterYSize="97283" DataType="Int16" BlockXSize="256" BlockYSize="16" />
+      <SrcRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <DstRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <NODATA>-9999</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="6">
+    <NoDataValue>-9999</NoDataValue>
+    <HideNoDataValue>1</HideNoDataValue>
+    <Overview>
+      <SourceFilename relativeToVRT="1">US_140CH_20180620/Grid/us_140ch.ovr</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </Overview>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">US_140CH_20180620/Grid/us_140ch</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="154208" RasterYSize="97283" DataType="Int16" BlockXSize="256" BlockYSize="16" />
+      <SrcRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <DstRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <NODATA>-9999</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="7">
+    <NoDataValue>-9999</NoDataValue>
+    <HideNoDataValue>1</HideNoDataValue>
+    <Overview>
+      <SourceFilename relativeToVRT="1">US_140CBH_20180620/Grid/us_140cbh.ovr</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </Overview>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">US_140CBH_20180620/Grid/us_140cbh</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="154208" RasterYSize="97283" DataType="Int16" BlockXSize="256" BlockYSize="16" />
+      <SrcRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <DstRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <NODATA>-9999</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="8">
+    <NoDataValue>-9999</NoDataValue>
+    <HideNoDataValue>1</HideNoDataValue>
+    <Overview>
+      <SourceFilename relativeToVRT="1">US_140CBD_20180620/Grid/us_140cbd.ovr</SourceFilename>
+      <SourceBand>1</SourceBand>
+    </Overview>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="1">US_140CBD_20180620/Grid/us_140cbd</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="154208" RasterYSize="97283" DataType="Int16" BlockXSize="256" BlockYSize="16" />
+      <SrcRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <DstRect xOff="0" yOff="0" xSize="154208" ySize="97283" />
+      <NODATA>-9999</NODATA>
+    </ComplexSource>
+  </VRTRasterBand>
+</VRTDataset>
