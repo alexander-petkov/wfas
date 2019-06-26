@@ -44,11 +44,6 @@ function remove_file_from_mosaic {
    done
 }
 
-
-
-echo "Before delete:" ${#CUR_FILES[@]}
- 
-
 for i in ${CUR_FILES[@]}
 do 
   f=`echo ${i}|cut -d '/' -f 9-`
@@ -64,9 +59,6 @@ do
   fi;
 done
 
-CUR_FILES=(`find ${FILE_DIR} -name '*.2dvaranl_ndfd.grb2_wexp'|sort`)
-
-echo "After delete:" ${#CUR_FILES[@]}
 #Remove empty directories:
 find ${FILE_DIR} -empty -type d -name 'rtma2p5.*' -delete
 
