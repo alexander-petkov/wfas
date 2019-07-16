@@ -61,6 +61,7 @@ do
     subdir=`echo ${i}|cut -d '/' -f 9`
     to_delete=`echo ${i}|cut -d '/' -f 10` #extract filename
     rm -rf $FILE_DIR/$subdir/*${to_delete}*
+    rm -rf $FILE_DIR/$subdir/.${to_delete}*
   else
     break
   fi;
