@@ -12,7 +12,14 @@
             <attributes>the_geom:Polygon,location:String,imageindex:Integer,time:java.util.Date</attributes>
         </schema>
     </schemas>
-    <coverages>
+     <coverages>
+        <coverage>
+            <name>Ceiling_cloud_ceiling</name>
+            <schema ref="default"/>
+            <domains>
+                <domain ref="time"/>
+            </domains>
+        </coverage>
         <coverage>
             <name>Dewpoint_temperature_height_above_ground</name>
             <schema ref="default"/>
@@ -27,10 +34,31 @@
                 <domain ref="time"/>
             </domains>
         </coverage>
+        <coverage>
+            <name>Specific_humidity_height_above_ground</name>
+            <schema ref="default"/>
+            <domains>
+                <domain ref="time"/>
+            </domains>
+        </coverage>
+        <coverage>
+            <name>Wind_direction_from_which_blowing_height_above_ground</name>
+            <schema ref="default"/>
+            <domains>
+                <domain ref="time"/>
+            </domains>
+        </coverage>
+        <coverage>
+            <name>Wind_speed_height_above_ground</name>
+            <schema ref="default"/>
+            <domains>
+                <domain ref="time"/>
+            </domains>
+        </coverage>
     </coverages>
-    <parameters>
-        <parameter name="AuxiliaryFile" value="rtma.xml"/>
-        <parameter name="AbsolutePath" value="true"/>
+   <parameters>
+	<parameter name="AuxiliaryFile" value="rtma.xml"/>    
+	<parameter name="AbsolutePath" value="true"/>
         <parameter name="uniqueTimeAttribute" value="true"/>
     </parameters>
 </Indexer>

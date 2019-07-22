@@ -1,7 +1,7 @@
 #!/bin/bash
 
 REST_URL="http://192.168.59.56:8081/geoserver/rest/workspaces"
-WORKSPACE="weather"
+WORKSPACE="rtma"
 RTMA_MOSAIC="rtma_mosaic"
 
 #RTMA grib files local storage locations:

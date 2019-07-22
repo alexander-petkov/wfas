@@ -2,10 +2,22 @@
 <Indexer>
     <coverages>
         <coverage>
+            <name>Ceiling_cloud_ceiling</name>
+        </coverage>
+        <coverage>
             <name>Dewpoint_temperature_height_above_ground</name>
         </coverage>
         <coverage>
             <name>Temperature_height_above_ground</name>
+        </coverage>
+        <coverage>
+            <name>Specific_humidity_height_above_ground</name>
+        </coverage>
+        <coverage>
+            <name>Wind_direction_from_which_blowing_height_above_ground</name>
+        </coverage>
+        <coverage>
+            <name>Wind_speed_height_above_ground</name>
         </coverage>
     </coverages>
     <parameters>
