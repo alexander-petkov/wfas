@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Indexer>
+    <domains>
+        <domain name="time">
+            <attributes>
+                <attribute>time</attribute>
+            </attributes>
+        </domain>
+    </domains>
+    <schemas>
+        <schema name="default">
+            <attributes>the_geom:Polygon,location:String,time:java.util.Date</attributes>
+        </schema>
+    </schemas>
+    <coverages>
+        <coverage>
+            <name>Total_cloud_cover_surface</name>
+            <schema ref="default"/>
+            <domains>
+                <domain ref="time"/>
+            </domains>
+        </coverage>
+    </coverages>
+    <parameters>
+        <parameter name="AbsolutePath" value="true"/>
+        <parameter name="uniqueTimeAttribute" value="false"/>
+	<parameter name="CanBeEmpty" value="true" />
+    </parameters>
+</Indexer>

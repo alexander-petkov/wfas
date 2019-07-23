@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Indexer>
+    <coverages>
+        <coverage>
+            <name>Total_cloud_cover_surface</name>
+        </coverage>
+    </coverages>
+    <parameters>
+        <parameter name="uniqueTimeAttribute" value="false"/>
+    </parameters>
+</Indexer>
