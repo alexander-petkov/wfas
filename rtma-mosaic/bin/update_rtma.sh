@@ -36,7 +36,7 @@ do
  if [ $found = 0 ]; then 
    #add granule to mosaic:
    echo "Adding granule:" $c
-   curl -v -u admin:geoserver -XPOST -H "Content-type: text/plain" -d "file:${c}" ${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/external.imagemosaic
+   curl -s -u admin:geoserver -XPOST -H "Content-type: text/plain" -d "file://"${c} "${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/external.imagemosaic"
  fi
 done    
 
@@ -44,10 +44,9 @@ function remove_file_from_mosaic {
    for c in ${COVERAGES[@]}
    do
 	#get granule id	for this file:
-	gran_id=`curl -s -uadmin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages/${c}/index/granules.xml?filter=location=%27${1}%27|grep -oP '(?<=<gf:'${c}' fid=").*?(?=">)'`
-        echo "Should delete granule:" ${gran_id}
-	#delete the granule, using the fid retrieved above:
-	curl -s -u admin:geoserver -XDELETE "${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages/${c}/index/granules/${gran_id}"
+        echo "Should delete granule:" ${1}
+	#delete the granule:
+	curl -s -u admin:geoserver -XDELETE "${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages/${c}/index/granules.xml?filter=location='${1}'"
    done
 }
 
@@ -56,6 +55,7 @@ do
   f=`echo ${i}|cut -d '/' -f 9-`
   if ! curl -I ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/$f; then
     #remove old granules from the mosaic:
+    echo "removing" ${i}, ${f}
     remove_file_from_mosaic $i
     #remove old granule from system:
     subdir=`echo ${i}|cut -d '/' -f 9`
