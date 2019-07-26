@@ -43,27 +43,27 @@ do
    FILE_DIR='/mnt/cephfs/wfas/data/rtma/'${d}
 
    #Sync to the most current RTMA FTP archive: 
-   wget --cut-dirs 6 -xnH -c --recursive --directory-prefix=$FILE_DIR -N  --no-parent \
+   wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=$FILE_DIR -N  --no-parent \
 	-A${PATTERNS[counter]} \
 	ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/rtma2p5.*
 
    #Get a list of coverages for this mosaic:
    COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages.xml \
 		|grep -oP '(?<=<name>).*?(?=</name>)'`)
-   #List of locally stored Grib files:
+   #Sorted list of locally stored Grib files:
    CUR_FILES=(`find ${FILE_DIR} -name ${PATTERNS[counter]} |sort`)
 
-   #List of Mosaic granules:
-   MOSAIC_FILES=`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages/${COVERAGES[0]}/index/granules.xml |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'`
+   #Sorted list of Mosaic granules:
+   MOSAIC_FILES=`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages/${COVERAGES[0]}/index/granules.xml |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`
 
    add_new_files_to_mosaic 
 
-   for i in ${CUR_FILES[@]}
+   for i in ${MOSAIC_FILES[@]}
    do 
-      f=`echo ${i}|cut -d '/' -f 8-`
+      echo $f
       if ! curl -I ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/$f; then
          #remove old granules from the mosaic:
-         remove_file_from_mosaic $i
+	 remove_file_from_mosaic $i
          #remove old granule from system:
          subdir=`echo ${i}|cut -d '/' -f 8`
          to_delete=`echo ${i}|cut -d '/' -f 9` #extract filename
