@@ -57,6 +57,24 @@ function remove_file_from_mosaic {
    done
 }
 
+function download_varanl {
+   wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=${1} -N  --no-parent \
+      -A${PATTERNS[counter]} \
+      ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/rtma2p5.*
+}
+
+function download_pcp {
+   #Rewrite downloaded varanl file names to pcp, and download only those.
+   #This is to ensure that varanl and pcp archives are with aligned timesteps.
+   PCP_FILES=(`find $RTMA_DIR/varanl/ -name *wexp |cut -d '/' -f 8-|awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'|sort`)
+   
+   for f in ${PCP_FILES[@]}
+   do
+      wget -q --cut-dirs 6 -xnH -c --directory-prefix=${1} -N  --no-parent \
+	   ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/${f}
+   done
+}
+  
 #loop over RTMA datasets:
 for d in ${DATASETS[@]}
 do 
@@ -68,9 +86,10 @@ do
    #Unless we have the Rel Humidity (rhm) dataset, 
    #which is derived from varanl data:
    if [ ! ${d} = 'rhm' ] ; then
-      wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=$FILE_DIR -N  --no-parent \
-	   -A${PATTERNS[counter]} \
-	   ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/rtma2p5.*
+     #wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=$FILE_DIR -N  --no-parent \
+     #	   -A${PATTERNS[counter]} \
+     #	   ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/rtma2p5.*
+     download_${d} $FILE_DIR
    else
       derive_rhm
    fi
@@ -89,6 +108,13 @@ do
    for i in ${MOSAIC_FILES[@]}
    do 
       f=`echo ${i}|cut -d '/' -f 8-` #get last two tokens, containing dir and file name
+      
+      if [ ${d} = 'pcp' ] ; then
+	 #rewrite pcp file name to a coresponding time step varanl name,
+         #so we keep pcp archive aligned with varanl in time
+	 f=`echo ${f}|awk '{print substr($0,1,17) substr($0,18,7) ".t" substr($0,34,2) "z.2dvaranl_ndfd.grb2_wexp"}'`
+      fi; 
+     
       if ! curl -I ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/$f; then
          #remove old granules from the mosaic:
 	 remove_file_from_mosaic $i
