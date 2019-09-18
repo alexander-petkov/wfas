@@ -86,10 +86,7 @@ do
    #Unless we have the Rel Humidity (rhm) dataset, 
    #which is derived from varanl data:
    if [ ! ${d} = 'rhm' ] ; then
-     #wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=$FILE_DIR -N  --no-parent \
-     #	   -A${PATTERNS[counter]} \
-     #	   ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/rtma2p5.*
-     download_${d} $FILE_DIR
+      download_${d} $FILE_DIR
    else
       derive_rhm
    fi
