@@ -1,0 +1,18 @@
+#
+# gridID 1
+#
+gridtype  = latlon
+gridsize  = 40125
+xname     = lon
+xlongname = "longitude"
+xunits    = "degrees_west"
+yname     = lat
+ylongname = "latitude"
+yunits    = "degrees_north"
+xsize     =  321
+ysize     =  125
+xfirst    =  -140
+xinc      =  -0.25
+yfirst    =  22
+yinc      =  0.25
+scanningMode = 64
