@@ -5,55 +5,38 @@ WORKSPACE="rtma"
 RTMA_DIR='/mnt/cephfs/wfas/data/rtma'
 DATASETS=('varanl' 'pcp' 'rhm')
 PATTERNS=('rtma2p5.*.2dvaranl_ndfd.grb2_wexp' 'rtma2p5.*.pcp.184.grb2' 'rtma2p5.*.2dvaranl_ndfd.grb2_wexp')
-#DATASETS=('rhm')
-#PATTERNS=('rtma2p5.*.2dvaranl_ndfd.grb2_wexp')
+VARS=('2t' '2r' 'tp' '10si' '10wdir' 'tcc') 
+EXTRACT_FROM=('varanl' 'rhm' 'pcp' 'varanl' 'varanl' 'varanl')
+BAND=(3 1 1 9 8 13)
+PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs'
 counter=0
 
-#cdo-related setup:
-export LD_LIBRARY_PATH=/mnt/cephfs/wfas/bin/eccodes-2.12.5/build/lib
-export ECCODES_DEFINITION_PATH=/mnt/cephfs/wfas/bin/eccodes-2.12.5/build/share/eccodes/definitions
-export ECCODES_SAMPLES_PATH=/mnt/cephfs/wfas/bin/eccodes-2.12.5/build/share/eccodes/samples
+#GDAL exports:
+export GRIB_NORMALIZE_UNITS=no #keep original units
 
 function derive_rhm {
-   for src in `find ${RTMA_DIR}/varanl -name '*_wexp' |sort`
+   for src in `find ${RTMA_DIR}/varanl/grb -name '*_wexp' |sort`
    do
-     f=`echo ${src}|cut -d '/' -f 8-`
-     if [ ! -f ${RTMA_DIR}/rhm/${f} ]; then
-       dirname=`echo ${src}|cut -d '/' -f 8`
-       mkdir -p ${RTMA_DIR}/rhm/${dirname}      
-       /mnt/cephfs/wfas/bin/cdo-1.9.7.1/src/cdo \
+     f=`echo ${src}|cut -d '/' -f 9-`
+     if [ ! -f ${RTMA_DIR}/rhm/grb/${f} ]; then
+       dirname=`echo ${src}|cut -d '/' -f 9`
+       mkdir -p ${RTMA_DIR}/rhm/grb/${dirname}      
+       cdo \
 		-expr,'2r=(exp(1.81+(2d*17.27- 4717.31) / (2d - 35.86))/exp(1.81+(2t*17.27- 4717.31) / (2t - 35.86)))*100' \
-		${src} ${RTMA_DIR}/rhm/$f
+		${src} ${RTMA_DIR}/rhm/grb/$f
      fi
    done
 }		      
-	
-function add_new_files_to_mosaic {
-for c in ${CUR_FILES[@]}
-do
-   found=0
-   for m in ${MOSAIC_FILES[@]}
-   do
-      if [ "$c" = "$m" ]; then
-         found=1 
-         break
-      fi
-   done
-   if [ $found = 0 ]; then
-      #add granule to mosaic:
-      echo "Adding granule:" $c
-      curl -s -u admin:geoserver -XPOST -H "Content-type: text/plain" -d "file://"$c "${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/external.imagemosaic"
-   fi
-done
-}
 
 function remove_file_from_mosaic {
+   #Get a list of coverages for this mosaic:
+   COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${1}/coverages.xml \
+               |grep -oP '(?<=<name>).*?(?=</name>)'`)
    for c in ${COVERAGES[@]}
    do
-	#get granule id	for this file:
-        echo "Should delete granule:" ${1}
-	#delete the granule:
-	curl -s -u admin:geoserver -XDELETE "${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages/${c}/index/granules.xml?filter=location='${1}'"
+      #delete the granule:
+      curl -s -u admin:geoserver -XDELETE \
+		"${REST_URL}/${WORKSPACE}/coveragestores/rtma_${1}/coverages/${c}/index/granules.xml?filter=location='${2}'"
    done
 }
 
@@ -66,7 +49,7 @@ function download_varanl {
 function download_pcp {
    #Rewrite downloaded varanl file names to pcp, and download only those.
    #This is to ensure that varanl and pcp archives are with aligned timesteps.
-   PCP_FILES=(`find $RTMA_DIR/varanl/ -name *wexp |cut -d '/' -f 8-|awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'|sort`)
+   PCP_FILES=(`find $RTMA_DIR/varanl/grb -name *wexp |cut -d '/' -f 9-|awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'|sort`)
    
    for f in ${PCP_FILES[@]}
    do
@@ -86,25 +69,16 @@ do
    #Unless we have the Rel Humidity (rhm) dataset, 
    #which is derived from varanl data:
    if [ ! ${d} = 'rhm' ] ; then
-      download_${d} $FILE_DIR
+      download_${d} $FILE_DIR/grb
    else
       derive_rhm
    fi
-
-   #Get a list of coverages for this mosaic:
-   COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages.xml \
-		|grep -oP '(?<=<name>).*?(?=</name>)'`)
+   
    #Sorted list of locally stored Grib files:
-   CUR_FILES=(`find ${FILE_DIR} -name ${PATTERNS[counter]} |sort`)
-
-   #Sorted list of Mosaic granules:
-   MOSAIC_FILES=`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${RTMA_MOSAIC}/coverages/${COVERAGES[0]}/index/granules.xml |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`
-
-   add_new_files_to_mosaic 
-
-   for i in ${MOSAIC_FILES[@]}
+   CUR_FILES=(`find ${FILE_DIR}/grb -name ${PATTERNS[counter]} |sort`)
+   for i in ${CUR_FILES[@]}
    do 
-      f=`echo ${i}|cut -d '/' -f 8-` #get last two tokens, containing dir and file name
+      f=`echo ${i}|cut -d '/' -f 9-` #get last two tokens, containing dir and file name
       
       if [ ${d} = 'pcp' ] ; then
 	 #rewrite pcp file name to a coresponding time step varanl name,
@@ -113,19 +87,57 @@ do
       fi; 
      
       if ! curl -I ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/$f; then
-         #remove old granules from the mosaic:
-	 remove_file_from_mosaic $i
          #remove old granule from system:
-         subdir=`echo ${i}|cut -d '/' -f 8`
-         to_delete=`echo ${i}|cut -d '/' -f 9` #extract filename
-         rm -rf $FILE_DIR/$subdir/*${to_delete}*
-         rm -rf $FILE_DIR/$subdir/.${to_delete}*
+         subdir=`echo ${i}|cut -d '/' -f 9`
+         to_delete=`echo ${i}|cut -d '/' -f 10` #extract filename
+	 find $FILE_DIR/grb -path '*'$subdir/${to_delete} -delete
       else
          break;
       fi;
    done
-
    #Remove empty directories:
-   find ${FILE_DIR} -empty -type d -name 'rtma2p5.*' -delete
+   find ${FILE_DIR}/grb -empty -type d -name 'rtma2p5.*' -delete
    (( counter++ ))
 done
+
+counter=0
+
+for var in ${VARS[@]}
+do 
+   FILE_DIR=${RTMA_DIR}/${EXTRACT_FROM[${counter}]}
+   #Sorted list of locally stored Grib files:
+   CUR_FILES=(`find ${FILE_DIR}/grb -type f |sort`)
+
+   for i in ${CUR_FILES[@]}
+   do
+      f=`echo ${i}|cut -d '/' -f 9-` #get last two tokens, containing dir and file name
+      if [ ! -f ${FILE_DIR}/tif/${var}/${f} ]; then
+        dirname=`echo ${i}|cut -d '/' -f 9`
+        mkdir -p ${FILE_DIR}/tif/${var}/${dirname}
+	gdal_translate -of GTiff -a_srs "${PROJ4_SRS}" -b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
+	#add new file to mosaic:
+	curl -s -u admin:geoserver -XPOST \
+		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/tif/${var}/${f} \
+	       	"${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/external.imagemosaic"
+      fi
+   done
+   
+   #remove any TIF files
+   #not found in the local Grib  archive
+   TIF_FILES=(`find ${FILE_DIR}/tif/${var} -path '*rtma2p5*' -type f |sort`)
+   for i in ${TIF_FILES[@]}
+   do
+      f=`echo ${i}|cut -d '/' -f 10-` #get last two tokens, containing dir and file name
+      if [ ! -f ${FILE_DIR}/grb/${f} ]; then
+	#remove from mosaic
+	remove_file_from_mosaic $var $i
+	#remove from file system
+	rm -f ${i}
+      fi
+   done
+
+   #Remove empty directories:
+   find ${FILE_DIR}/tif/${var} -empty -type d -name 'rtma2p5.*' -delete
+   (( counter++ ))
+done
+
