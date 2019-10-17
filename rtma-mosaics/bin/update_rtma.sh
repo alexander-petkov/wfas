@@ -9,6 +9,7 @@ VARS=('2t' '2r' 'tp' '10si' '10wdir' 'tcc')
 EXTRACT_FROM=('varanl' 'rhm' 'pcp' 'varanl' 'varanl' 'varanl')
 BAND=(3 1 1 9 8 13)
 PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs'
+RHM_SRS='+proj=lcc +lat_0=0 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6367470 +units=m +no_defs'
 counter=0
 
 #GDAL exports:
@@ -21,7 +22,7 @@ function derive_rhm {
      if [ ! -f ${RTMA_DIR}/rhm/grb/${f} ]; then
        dirname=`echo ${src}|cut -d '/' -f 9`
        mkdir -p ${RTMA_DIR}/rhm/grb/${dirname}      
-       cdo \
+       cdo invertlat \
 		-expr,'2r=(exp(1.81+(2d*17.27- 4717.31) / (2d - 35.86))/exp(1.81+(2t*17.27- 4717.31) / (2t - 35.86)))*100' \
 		${src} ${RTMA_DIR}/rhm/grb/$f
      fi
@@ -114,6 +115,9 @@ do
       if [ ! -f ${FILE_DIR}/tif/${var}/${f} ]; then
         dirname=`echo ${i}|cut -d '/' -f 9`
         mkdir -p ${FILE_DIR}/tif/${var}/${dirname}
+	if [ ${var} = '2r' ]; then
+		${PROJ4_SRS} = ${RHM_SRS}
+	fi
 	gdal_translate -of GTiff -a_srs "${PROJ4_SRS}" -b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	#add new file to mosaic:
 	curl -s -u admin:geoserver -XPOST \
