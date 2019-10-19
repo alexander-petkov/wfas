@@ -116,7 +116,7 @@ do
         dirname=`echo ${i}|cut -d '/' -f 9`
         mkdir -p ${FILE_DIR}/tif/${var}/${dirname}
 	if [ ${var} = '2r' ]; then
-		${PROJ4_SRS} = ${RHM_SRS}
+		PROJ4_SRS=${RHM_SRS}
 	fi
 	gdal_translate -of GTiff -a_srs "${PROJ4_SRS}" -b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	#add new file to mosaic:
