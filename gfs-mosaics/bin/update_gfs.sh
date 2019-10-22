@@ -5,6 +5,7 @@ WORKSPACE="gfs"
 GFS_DIR='/mnt/cephfs/wfas/data/gfs'
 DATASETS=('APCP'  'RH'  'TCDC'  'TMP'  'UGRD'  'VGRD'  'WDIR'  'WSPD') 
 DERIVED=(0 0 0 0 0 0 1 1) #is the dataset downloaded, or derived from other variables?
+#DERIVED=(1 1 1 1 1 1 1 1) #is the dataset downloaded, or derived from other variables?
 FUNCTION=('' '' '' '' '' '' 'derive_wdir' 'derive_wspd') 
 LEVEL=('surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' '10_m_above_ground' '10_m_above_ground')
 
@@ -29,22 +30,20 @@ FORECAST=`curl -s -l https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/|cu
 function derive_wdir {
    for h in `seq -w 003 1 384`
    do 
-	${CDO_DIR}/cdo -O -b 10 setgrid,${GFS_DIR}/mygrid -expr,'10wdir=10u' -mulc,57.3 -atan2 -mulc,-1 ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.grb2 -mulc,-1 ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.grb2 ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.grb2
+	   ${CDO_DIR}/cdo -O expr,'10wdir=((10u<0)) ? 360+10u:10u;' -mulc,57.3 -atan2 -mulc,-1 ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc -mulc,-1 ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
    done
 }
 function derive_wspd {
    for h in `seq -w 003 1 384`
    do 
-      ${CDO_DIR}/cdo -O select,name=10u,10v ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.grb2 ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.grb2 ${GFS_DIR}/out.grb2;
-      ${CDO_DIR}/cdo -O setgrid,${GFS_DIR}/mygrid -expr,'10si=(sqrt(10u*10u+10v*10v))' ${GFS_DIR}/out.grb2 ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.grb2
+      ${CDO_DIR}/cdo -O -expr,'10si=(sqrt(10u*10u+10v*10v))' -merge ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
    done
-   rm -f ${GFS_DIR}/out.grb2
 }
 
 #loop over GFS datasets:
 for d in ${DATASETS[@]}
 do 
-   #GFS grib files local storage locations:
+   #GFS files local storage locations:
    FILE_DIR=${GFS_DIR}/${d}
 
    #Sync to the most current GFS forecast run at 00
@@ -58,8 +57,8 @@ do
 		-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp;
 	 
 	 #rewrite the grid from 0-360 to -180 180 lon range:
-         ${CDO_DIR}/cdo setgrid,${GFS_DIR}/mygrid ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
-		${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.grb2;
+         ${CDO_DIR}/cdo -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
+		${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
 	 rm ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp ;
 	 
 	 find ${FILE_DIR} -empty -delete ;
