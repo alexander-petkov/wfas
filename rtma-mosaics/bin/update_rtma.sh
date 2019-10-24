@@ -118,7 +118,8 @@ do
 	if [ ${var} = '2r' ]; then
 		PROJ4_SRS=${RHM_SRS}
 	fi
-	gdal_translate -of GTiff -a_srs "${PROJ4_SRS}" -b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
+	gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs "${PROJ4_SRS}" \
+		-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	#add new file to mosaic:
 	curl -s -u admin:geoserver -XPOST \
 		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/tif/${var}/${f} \
