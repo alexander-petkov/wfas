@@ -10,13 +10,16 @@ VARS=('temp' 'rhm' 'qpf' 'wspd' 'wdir' 'sky')
 REMOTE_DIR=('VP.001-003' 'VP.004-007')
 PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs'
 
+#GDAL exports:
+export GRIB_NORMALIZE_UNITS=no #keep original units
+
 function make_geotiffs {
 	TIFF_PATH=`echo ${1}|rev|cut -d '/' -f 3-|rev`/tif
 	band=1
 	for t in `cdo showtimestamp ${1}`
 	do
 		d=`date  -d $t +'%Y%m%d%H%M'`;
-		gdal_translate -of GTiff -a_srs "${PROJ4_SRS}" \
+		gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs "${PROJ4_SRS}" \
 			--config CENTER_LONG -95 -b ${band} \
 			${1} ${TIFF_PATH}/${d}.tif 
 		((band++))
@@ -32,13 +35,27 @@ function remove_old_geotiffs {
 	done
 }
 
+function remove_files_from_mosaic {
+	#Get a list of coverages for this mosaic:
+	COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages.xml \
+		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
+	for c in ${COVERAGES[@]}
+	do
+	   #delete all granules:
+	   curl -s -u admin:geoserver -XDELETE \
+		"${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages/${c}/index/granules.xml"
+	done
+}
+
 for v in ${VARS[@]}
 do 
    #check that directories exist in $FILE_DIR:
    if [[ ! -e $NDFD_DIR/${v} ]]; then
       mkdir -p $NDFD_DIR/${v}
    fi
-	
+
+   remove_files_from_mosaic ${v}
+
    for r in ${REMOTE_DIR[@]}
    do
       if curl -I ${FTP_ADDR}/${r}/ds.${v}.bin; then #check that remote file exists
