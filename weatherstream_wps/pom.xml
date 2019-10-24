@@ -1,0 +1,89 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+    http://maven.apache.org/maven-v4_0_0.xsd ">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>org.geoserver</groupId>
+	<artifactId>wxs_wps</artifactId>
+	<packaging>jar</packaging>
+	<version>1.0</version>
+	<name>wxs_wps</name>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<gt.version>21.2</gt.version>  <!-- change to GeoTools version -->
+		<gs.version>2.15.2</gs.version> <!-- change to GeoServer version -->
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.geotools</groupId>
+			<artifactId>gt-process</artifactId>
+			<version>${gt.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.geoserver.extension</groupId>
+			<artifactId>gs-wps-core</artifactId>
+			<version>${gs.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.integratedmodelling</groupId>
+			<artifactId>jscience</artifactId>
+			<version>4.3.1</version>
+		</dependency>
+		<dependency>
+			<groupId>javax.servlet</groupId>
+			<artifactId>javax.servlet-api</artifactId>
+			<version>3.1.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.geoserver</groupId>
+			<artifactId>gs-main</artifactId>
+			<version>${gs.version}</version>
+			<classifier>tests</classifier>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.11</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.mockrunner</groupId>
+			<artifactId>mockrunner</artifactId>
+			<version>0.3.6</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>1.8</source>
+					<target>1.8</target>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+	<repositories>
+		<repository>
+			<id>im</id>
+			<name>Int.Modelling Repository</name>
+			<url>http://www.integratedmodelling.org/nexus/content/repositories/releases/</url>
+		</repository>
+		<repository>
+			<id>boundless</id>
+			<name>Boundless Maven Repository</name>
+			<url>https://repo.boundlessgeo.com/main</url>
+		</repository>
+		<repository>
+			<id>osgeo</id>
+			<name>Open Source Geospatial Foundation Repository</name>
+			<url>https://download.osgeo.org/webdav/geotools</url>
+		</repository>
+	</repositories>
+</project>
