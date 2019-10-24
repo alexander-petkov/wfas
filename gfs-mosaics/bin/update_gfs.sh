@@ -11,13 +11,6 @@ LEVEL=('surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' '10_m
 
 counter=0 
 
-#cdo-related setup:
-#export LD_LIBRARY_PATH=/mnt/cephfs/wfas/bin/eccodes-2.12.5/build/lib
-#export ECCODES_DEFINITION_PATH=/mnt/cephfs/wfas/bin/eccodes-2.12.5/build/share/eccodes/definitions
-#export ECCODES_SAMPLES_PATH=/mnt/cephfs/wfas/bin/eccodes-2.12.5/build/share/eccodes/samples
-#CDO_DIR='/mnt/cephfs/wfas/bin/cdo-1.9.7.1/src'
-CDO_DIR='/usr/bin/'
-
 #NOMADS setup:
 RES='0p25' #quarter-degree resolution
 NOMADS_URL="https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_${RES}_1hr.pl"
@@ -28,15 +21,28 @@ FORECAST=`curl -s -l https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/|cu
 #END NOMADS Setup
 
 function derive_wdir {
+   rm ${GFS_DIR}/WDIR/tif/*.tif
    for h in `seq -w 003 1 384`
    do 
-	   ${CDO_DIR}/cdo -O expr,'10wdir=((10u<0)) ? 360+10u:10u;' -mulc,57.3 -atan2 -mulc,-1 ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc -mulc,-1 ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
+      cdo -O expr,'10wdir=((10u<0)) ? 360+10u:10u;' -mulc,57.3 -atan2 -mulc,-1 \
+	      ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc -mulc,-1 \
+	      ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
+	      ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
+      t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
+      date=`date  -d $t +'%Y%m%d%H%M'` 
+      gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs wgs84 -b 1 ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
+	      ${GFS_DIR}/WDIR/tif/${date}.tif
    done
 }
 function derive_wspd {
+   rm ${GFS_DIR}/WSPD/tif/*.tif 
    for h in `seq -w 003 1 384`
-   do 
-      ${CDO_DIR}/cdo -O -expr,'10si=(sqrt(10u*10u+10v*10v))' -merge ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
+   do
+      cdo -O -expr,'10si=(sqrt(10u*10u+10v*10v))' -merge ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
+      t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
+      date=`date  -d $t +'%Y%m%d%H%M'` 
+      gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs wgs84 ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
+	      ${GFS_DIR}/WSPD/tif/${date}.tif
    done
 }
 
@@ -51,14 +57,19 @@ do
    #in which case we calculate it:
 #1. If dataset is not derived, get data
    if [ ${DERIVED[$counter]} = 0 ]; then 
+      rm  ${FILE_DIR}/tif/*.tif
       for h in `seq -w 003 1 384`
       do 
          wget  -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00" \
 		-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp;
 	 
 	 #rewrite the grid from 0-360 to -180 180 lon range:
-         ${CDO_DIR}/cdo -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
+         cdo -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
 		${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
+         t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
+         date=`date -d ${t} +'%Y%m%d%H%M'` 
+         gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs wgs84 -b 1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
+	      ${FILE_DIR}/tif/${date}.tif
 	 rm ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp ;
 	 
 	 find ${FILE_DIR} -empty -delete ;
@@ -67,6 +78,6 @@ do
       ${FUNCTION[counter]} #execute corresponding derive function
    fi
 #2. update mosaic:
-   curl -v -u admin:geoserver -H "Content-type: text/plain" -d "file://${GFS_DIR}/${d}"  "${REST_URL}/workspaces/${WORKSPACE}/coveragestores/${d}/external.imagemosaic"
+   curl -v -u admin:geoserver -H "Content-type: text/plain" -d "file://${GFS_DIR}/${d}/tif"  "${REST_URL}/workspaces/${WORKSPACE}/coveragestores/${d}/external.imagemosaic"
    (( counter++ ))
 done
