@@ -1,13 +1,13 @@
 #!/bin/bash
-
-REST_URL="http://192.168.59.56:8081/geoserver/rest"
+export PATH=/opt/anaconda3/bin:/opt/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+REST_URL="http://192.168.59.56:8081/geoserver/rest/workspaces"
 WORKSPACE="gfs"
 GFS_DIR='/mnt/cephfs/wfas/data/gfs'
-DATASETS=('APCP'  'RH'  'TCDC'  'TMP'  'UGRD'  'VGRD'  'WDIR'  'WSPD') 
+DATASETS=('UGRD'  'VGRD'  'APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WSPD') 
 DERIVED=(0 0 0 0 0 0 1 1) #is the dataset downloaded, or derived from other variables?
 #DERIVED=(1 1 1 1 1 1 1 1) #is the dataset downloaded, or derived from other variables?
 FUNCTION=('' '' '' '' '' '' 'derive_wdir' 'derive_wspd') 
-LEVEL=('surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' '10_m_above_ground' '10_m_above_ground')
+LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground')
 
 counter=0 
 
@@ -20,44 +20,57 @@ SUBREGION='subregion=&leftlon=-140&rightlon=-60&toplat=53&bottomlat=22'
 FORECAST=`curl -s -l https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/|cut -d '"' -f 2|cut -d '/' -f 1|grep 'gfs\.'|tail -n 1`
 #END NOMADS Setup
 
+#GDAL exports:
+export GRIB_NORMALIZE_UNITS=no #keep original units
+
 function derive_wdir {
-   rm ${GFS_DIR}/WDIR/tif/*.tif
    for h in `seq -w 003 1 384`
    do 
       cdo -O expr,'10wdir=((10u<0)) ? 360+10u:10u;' -mulc,57.3 -atan2 -mulc,-1 \
 	      ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc -mulc,-1 \
 	      ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
 	      ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
-      t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
+      t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
       date=`date  -d $t +'%Y%m%d%H%M'` 
       gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs wgs84 -b 1 ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
-	      ${GFS_DIR}/WDIR/tif/${date}.tif
+	      ${GFS_DIR}/WDIR/${date}.tif
    done
 }
 function derive_wspd {
-   rm ${GFS_DIR}/WSPD/tif/*.tif 
    for h in `seq -w 003 1 384`
    do
       cdo -O -expr,'10si=(sqrt(10u*10u+10v*10v))' -merge ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/VGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
       t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
       date=`date  -d $t +'%Y%m%d%H%M'` 
       gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs wgs84 ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
-	      ${GFS_DIR}/WSPD/tif/${date}.tif
+	      ${GFS_DIR}/WSPD/${date}.tif
    done
 }
 
-#loop over GFS datasets:
+function remove_files_from_mosaic {
+	#Get a list of coverages for this mosaic:
+	COVERAGES=(`curl -s -u admin:geoserver -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
+		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
+	for c in ${COVERAGES[@]}
+	do
+	   #delete all granules:
+	   echo ${c}
+	   curl -s -u admin:geoserver -XDELETE \
+		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml"
+	done
+}
+
+#Download GFS datasets
+#and derive GTiff files:
 for d in ${DATASETS[@]}
 do 
    #GFS files local storage locations:
    FILE_DIR=${GFS_DIR}/${d}
-
    #Sync to the most current GFS forecast run at 00
    #Unless we have a derived dataset, 
    #in which case we calculate it:
 #1. If dataset is not derived, get data
    if [ ${DERIVED[$counter]} = 0 ]; then 
-      rm  ${FILE_DIR}/tif/*.tif
       for h in `seq -w 003 1 384`
       do 
          wget  -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00" \
@@ -69,15 +82,33 @@ do
          t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
          date=`date -d ${t} +'%Y%m%d%H%M'` 
          gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs wgs84 -b 1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
-	      ${FILE_DIR}/tif/${date}.tif
-	 rm ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp ;
-	 
-	 find ${FILE_DIR} -empty -delete ;
+	      ${FILE_DIR}/${date}.tif
       done
    elif [ ${DERIVED[$counter]} = 1 ]; then #derive dataset:
       ${FUNCTION[counter]} #execute corresponding derive function
    fi
-#2. update mosaic:
-   curl -v -u admin:geoserver -H "Content-type: text/plain" -d "file://${GFS_DIR}/${d}/tif"  "${REST_URL}/workspaces/${WORKSPACE}/coveragestores/${d}/external.imagemosaic"
+   
    (( counter++ ))
+done
+
+#Files are downloaded 
+#and new GTiff granules derived 
+#in previous loop.
+#Now update mosaics:
+for d in ${DATASETS[@]}
+do 
+#1. Clear old granules from Geoserver's catalog and file system:
+   #GFS files local storage locations:
+   FILE_DIR=${GFS_DIR}/${d}
+   #remove granules from mosaic catalog:
+   remove_files_from_mosaic ${d}
+   #remove old granules from system:
+   rm  ${FILE_DIR}/tif/*.tif*
+   find ${FILE_DIR} -empty -type f -delete ;
+   rm ${FILE_DIR}/*.tmp ;
+   rm ${FILE_DIR}/*.nc ;
+#2. Move new granules in place:
+   mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
+#3.Re-index mosaic:
+   curl -v -u admin:geoserver -H "Content-type: text/plain" -d "file://${GFS_DIR}/${d}/tif"  "${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic"
 done
