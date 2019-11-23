@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export PATH=/opt/anaconda3/bin:/opt/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 REST_URL="http://192.168.59.56:8081/geoserver/rest/workspaces"
 WORKSPACE="rtma"
 RTMA_DIR='/mnt/cephfs/wfas/data/rtma'
@@ -62,7 +64,6 @@ function download_pcp {
 #loop over RTMA datasets:
 for d in ${DATASETS[@]}
 do 
-   RTMA_MOSAIC="rtma_"${d}
    #RTMA grib files local storage locations:
    FILE_DIR=${RTMA_DIR}/${d}
 
@@ -112,13 +113,14 @@ do
    for i in ${CUR_FILES[@]}
    do
       f=`echo ${i}|cut -d '/' -f 9-` #get last two tokens, containing dir and file name
+
       if [ ! -f ${FILE_DIR}/tif/${var}/${f} ]; then
         dirname=`echo ${i}|cut -d '/' -f 9`
         mkdir -p ${FILE_DIR}/tif/${var}/${dirname}
 	if [ ${var} = '2r' ]; then
 		PROJ4_SRS=${RHM_SRS}
 	fi
-	gdal_translate -of GTiff -co PROFILE=GeoTIFF -a_srs "${PROJ4_SRS}" \
+	gdal_translate -of GTiff -co PROFILE=GeoTIFF -co TILED=YES -a_srs "${PROJ4_SRS}" \
 		-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	#add new file to mosaic:
 	curl -s -u admin:geoserver -XPOST \
@@ -127,10 +129,13 @@ do
       fi
    done
    
-   #remove any TIF files
-   #not found in the local Grib  archive
-   TIF_FILES=(`find ${FILE_DIR}/tif/${var} -path '*rtma2p5*' -type f |sort`)
-   for i in ${TIF_FILES[@]}
+   #Get a list of coverages for this mosaic:
+   COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages.xml \
+		|grep -oP '(?<=<name>).*?(?=</name>)'`)
+   #Sorted list of Mosaic granules:
+   MOSAIC_FILES=`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages/${COVERAGES[0]}/index/granules.xml |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`
+
+   for i in ${MOSAIC_FILES[@]}
    do
       f=`echo ${i}|cut -d '/' -f 10-` #get last two tokens, containing dir and file name
       if [ ! -f ${FILE_DIR}/grb/${f} ]; then
