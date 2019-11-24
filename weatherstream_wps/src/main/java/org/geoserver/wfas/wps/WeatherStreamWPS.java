@@ -56,7 +56,9 @@ public class WeatherStreamWPS implements GeoServerProcess {
 	private StructuredGridCoverage2DReader reader = null;
 	private MathTransform transform;
 	private Point input;
+	private Point transPoint;
 	private DateFormat dFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+	private Date lastDate;
 	private Calendar cal = Calendar.getInstance();
 	private static String LANDFIRE_NAMESPACE = "landfire";
 	private static String LANDFIRE_DEM = "us_dem_2016";	
@@ -94,9 +96,33 @@ public class WeatherStreamWPS implements GeoServerProcess {
 	public ByteArrayRawData execute(
 			@DescribeParameter(name = "Longitude", description = "Longitude for which to extract weather info") Double lon,
 			@DescribeParameter(name = "Latitude", description = "Latitude for which to extract weather info") Double lat,
-			@DescribeParameter(name = "English units", description = "English units if true, metric units if false", defaultValue = "true") Boolean useEnglishUnits)
-			throws IOException, MismatchedDimensionException, ParseException {
-
+			@DescribeParameter(name = "English units", description = "English units if true, metric units if false", defaultValue = "true") Boolean useEnglishUnits,
+			@DescribeParameter(name = "Archive", 
+								description = "Name of the archive from which the WeatherStream file will be "
+										+ "generated: rtma, ndfd, or gfs. Default is all three.", 
+								defaultValue = "all") String archive)
+					throws IOException, MismatchedDimensionException, ParseException {
+		/*
+		 * Initialize to null at the beginning of each run:
+		 */
+		lastDate=null;
+		
+		/*
+		 * Determine which archive to query:
+		 */
+		switch (archive) {
+			case "rtma":
+				namespaces = Arrays.asList("rtma");
+				break;
+			case "ndfd":
+				namespaces = Arrays.asList("ndfd");
+				break;
+			case "gfs":
+				namespaces = Arrays.asList("gfs");
+				break;
+			default:
+				namespaces = Arrays.asList("rtma", "ndfd", "gfs");
+		}
 		/*
 		 * Open an output stream to which to write:
 		 */
@@ -127,13 +153,13 @@ public class WeatherStreamWPS implements GeoServerProcess {
 		try { 
 			transform =
 						CRS.findMathTransform(CRS.decode("EPSG:" + input.getSRID()), dem.getCRS());
-				input = (Point) JTS.transform(input, transform);
-				input.setSRID(Integer.parseInt(CRS.toSRS(dem.getCRS(),true)));
+				transPoint = (Point) JTS.transform(input, transform);
+				transPoint.setSRID(Integer.parseInt(CRS.toSRS(dem.getCRS(),true)));
 		} catch (Exception e) { 
 			//TODO Auto-generated catch block e.printStackTrace(csvWriter); }
 		}
-		Number height = (Number) Array.get(dc.evaluate(new DirectPosition2D(input.getX(),
-				input.getY())),0);
+		Number height = (Number) Array.get(dc.evaluate(new DirectPosition2D(transPoint.getX(),
+				transPoint.getY())),0);
 		
 		if (useEnglishUnits) {
 			Quantity <Length> qt = Quantities.getQuantity(height.intValue(), Units.METRE)
@@ -170,12 +196,21 @@ public class WeatherStreamWPS implements GeoServerProcess {
 			List <String> tList= Arrays.asList(timestamps.split(","));
 			
 			Collections.sort(tList);
-
+			
 			final ParameterValue<List> time = ImageMosaicFormat.TIME.createValue(); 
 			
 			for (String tStep:tList) {
-				WeatherRecord wr = new WeatherRecord(); 
 				Date timeD = dFormat.parse(tStep.substring(0,tStep.length()-1));
+				
+				/**
+				 * check whether we should continue on from 
+				 * another dataset:
+				 */
+				if (lastDate!=null && !timeD.after(lastDate) ) {
+						continue;
+					}
+				
+				WeatherRecord wr = new WeatherRecord(); 
 				wr.date = timeD;
 				cal.setTime(timeD);
 				time.setValue(new ArrayList() { { add(timeD); } }); 
@@ -188,8 +223,8 @@ public class WeatherStreamWPS implements GeoServerProcess {
 				try { 
 					transform =
 								CRS.findMathTransform(CRS.decode("EPSG:" + input.getSRID()), ci.getCRS());
-						input = (Point) JTS.transform(input, transform); 
-						input.setSRID(Integer.parseInt(CRS.toSRS(ci.getCRS(),true)));
+						transPoint = (Point) JTS.transform(input, transform); 
+						transPoint.setSRID(Integer.parseInt(CRS.toSRS(ci.getCRS(),true)));
 				} catch (Exception e) { 
 					//TODO Auto-generated catch block e.printStackTrace(csvWriter); }
 				}
@@ -228,8 +263,8 @@ public class WeatherStreamWPS implements GeoServerProcess {
 
 						GridCoverage2D gc = reader.read(values);
 															
-						Number val = (Number) Array.get(gc.evaluate(new DirectPosition2D(input.getX(),
-																	input.getY())),0); 
+						Number val = (Number) Array.get(gc.evaluate(new DirectPosition2D(transPoint.getX(),
+																	transPoint.getY())),0); 
 						switch (ci.getName()) {
 						case "Temperature":
 							Quantity<Temperature> tmpQt;
@@ -280,7 +315,7 @@ public class WeatherStreamWPS implements GeoServerProcess {
 							break;
 						}
 						gc.dispose(false); 	
-					} 
+					} //end for Coverage
 //				} finally {
 //					iterator.close(); 
 //			    }cal.get(Calendar.MONTH)
@@ -297,6 +332,9 @@ public class WeatherStreamWPS implements GeoServerProcess {
 						+ String.format("%1$6s", new DecimalFormat("#").format(wr.cc)) + "\n");
 				//csvWriter.append("\n");
 			}//end for	date
+			String lastTimeStep = tList.get(tList.size()-1);
+			lastDate = dFormat.parse(lastTimeStep.substring(0, lastTimeStep.length()-1));
+			lastTimeStep=null;
 		}//end for
 
 		/*
