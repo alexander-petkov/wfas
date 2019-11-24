@@ -44,11 +44,6 @@ function make_geotiffs {
 function remove_old_geotiffs {
 	TIFF_PATH=`echo ${1}|rev|cut -d '/' -f 3-|rev`/tif
 	rm ${TIFF_PATH}/*.tif*
-	#for t in `cdo showtimestamp ${1}`
-	#do
-#		d=`date  -d $t +'%Y%m%d%H%M'`;
-#		rm ${TIFF_PATH}/${d}.tif
-#	done
 }
 
 function remove_files_from_mosaic {
@@ -83,17 +78,6 @@ do
             -O ${NDFD_DIR}/${v}/${r}/ds.${v}.bin.grb ;
 
  	 make_geotiffs ${NDFD_DIR}/${v}/${r}/ds.${v}.bin.grb ${v};
-	 
-	 #get coverage name(s) for this variable:
-	 #COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${v}/coverages.xml \
-	 #	|grep -oP '(?<=<name>).*?(?=</name>)'`)	
-	 
-	 #remove existing granules from this variable's mosaic:
-         #for c in ${COVERAGES[@]}
-         #do
-	 #    curl -s -u admin:geoserver -XDELETE \
-	 #	"${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${v}/coverages/${c}/index/granules.xml?filter=location='${NDFD_DIR}/${v}/${r}/ds.${v}.bin.grb'" ;
-	 #done
 
 	#now reindex the mosaic:  
 	for file in `ls ${NDFD_DIR}/${v}/tif/*.tif`
