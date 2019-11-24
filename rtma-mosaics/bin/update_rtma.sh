@@ -21,7 +21,7 @@ function derive_rhm {
    for src in `find ${RTMA_DIR}/varanl/grb -name '*_wexp' |sort`
    do
      f=`echo ${src}|cut -d '/' -f 9-`
-     if [ ! -f ${RTMA_DIR}/rhm/grb/${f} ]; then
+     if [ ! -f ${RTMA_DIR}/rhm/grb/${f} ] ; then
        dirname=`echo ${src}|cut -d '/' -f 9`
        mkdir -p ${RTMA_DIR}/rhm/grb/${dirname}      
        cdo invertlat \
@@ -122,6 +122,7 @@ do
 	fi
 	gdal_translate -of GTiff -co PROFILE=GeoTIFF -co TILED=YES -a_srs "${PROJ4_SRS}" \
 		-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
+	rm ${FILE_DIR}/tif/${var}/${f}.aux.xml
 	#add new file to mosaic:
 	curl -s -u admin:geoserver -XPOST \
 		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/tif/${var}/${f} \
