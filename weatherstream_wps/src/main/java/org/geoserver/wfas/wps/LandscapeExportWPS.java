@@ -13,7 +13,12 @@ import org.geoserver.wcs2_0.WCSEnvelope;
 import org.geoserver.wcs2_0.exception.WCS20Exception;
 import org.geoserver.wps.gs.GeoServerProcess;
 import org.geotools.coverage.grid.GridCoverage2D;
+import org.geotools.coverage.grid.GridEnvelope2D;
+import org.geotools.coverage.grid.GridGeometry2D;
+import org.geotools.coverage.grid.InvalidGridGeometryException;
+import org.geotools.coverage.grid.io.imageio.GeoToolsWriteParams;
 import org.geotools.coverage.processing.CoverageProcessor;
+import org.geotools.gce.geotiff.GeoTiffWriteParams;
 import org.geotools.geometry.Envelope2D;
 import org.geotools.geometry.GeneralEnvelope;
 import org.geotools.geometry.jts.JTS;
@@ -30,7 +35,9 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
+import org.opengis.coverage.Coverage;
 import org.opengis.coverage.grid.GridCoverage;
+import org.opengis.coverage.grid.GridGeometry;
 import org.opengis.coverage.processing.Operation;
 import org.opengis.geometry.Envelope;
 import org.opengis.geometry.MismatchedDimensionException;
@@ -43,6 +50,17 @@ import org.vfny.geoserver.util.WCSUtils;
 
 @DescribeProcess(title = "Landscape export", description = "A Web Processing Service which exports an 8-band Lanscape Geotiff suitable for use in Flammap/Farsite")
 public class LandscapeExportWPS implements GeoServerProcess {
+	private final static GeoTiffWriteParams DEFAULT_WRITE_PARAMS;
+
+    static {
+        // setting the write parameters (we my want to make these configurable in the future
+        DEFAULT_WRITE_PARAMS = new GeoTiffWriteParams();
+        DEFAULT_WRITE_PARAMS.setCompressionMode(GeoTiffWriteParams.MODE_EXPLICIT);
+        DEFAULT_WRITE_PARAMS.setCompressionType("LZW");
+        DEFAULT_WRITE_PARAMS.setCompressionQuality(0.75F);
+        DEFAULT_WRITE_PARAMS.setTilingMode(GeoToolsWriteParams.MODE_EXPLICIT);
+        DEFAULT_WRITE_PARAMS.setTiling(512, 512);
+    }
 	private static final CoverageProcessor PROCESSOR = CoverageProcessor.getInstance();
 	private static final Logger LOGGER = Logger.getLogger(LandscapeExportWPS.class.toString());
 	private String wkt;
@@ -59,15 +77,45 @@ public class LandscapeExportWPS implements GeoServerProcess {
 	public GridCoverage2D execute(
 			@DescribeParameter(name = "Longitude", description = "Center Longitude for Landscape file") Double lon,
 			@DescribeParameter(name = "Latitude", description = "Center latitude for Landscape file") Double lat,
-			@DescribeParameter(name = "coverage", description = "Input raster") GridCoverage2D coverage)
+			@DescribeParameter(name = "coverage", description = "Input raster") GridCoverage2D coverage,
+			@DescribeParameter(name = "Scale Factor", description = "Output resolution: minimum value 0.1 (10 times coarser resolution), maximum=1 (original resolution)", defaultValue="1", min=0, minValue=0.1, maxValue=1.0) double scaleFactor,
+			@DescribeParameter(name = "Extent", description = "Extent of the output files (in miles): minimum 5, maximum 60.", defaultValue="5", min=1, minValue=5, maxValue=60) Integer extent) 
 			throws IOException, MismatchedDimensionException {
+		/*
+		 * Check inputs for
+		 * out of range values:
+		 */
+		if (scaleFactor < 0.1) {
+			if (LOGGER.isLoggable(Level.FINE)) {
+				LOGGER.fine("Specified scale factor less than 0.1, setting to 0.1.");
+				scaleFactor = 0.1;
+			}
+		} else if (scaleFactor > 1) {
+				if (LOGGER.isLoggable(Level.FINE)) {
+					LOGGER.fine("Specified scale factor is more than 1, setting to 1.");
+					scaleFactor = 1.0;
+				}
+		}//end if
+		
+		if (extent < 5) {
+			if (LOGGER.isLoggable(Level.FINE)) {
+				LOGGER.fine("Extent less than 5 miles, setting to 5.");
+				extent = 5;
+			}
+		} else if (extent > 60) {
+			if (LOGGER.isLoggable(Level.FINE)) {
+				LOGGER.fine("Extent more than 60 miles, setting to 60.");
+				extent = 60;
+			}
+		}//end if
+				
 		/*
 		 * construct a point geometry for which we should query weather data:
 		 */
 		input = geometryFactory.createPoint(new Coordinate(lon, lat));
 		input.setSRID(4326);
 
-		wkt = buildCustomAlbersWkt(lon, lat);
+		wkt = buildCustomAlbersWkt(lon, lat, extent);
 
 		try {
 			crs = CRS.parseWKT(wkt);
@@ -78,8 +126,15 @@ public class LandscapeExportWPS implements GeoServerProcess {
 				LOGGER.fine("Unable to parse Albers projection from input coords: " + e.toString());
 			} // end if
 		} // end catch
-
-		ReferencedEnvelope envelope = new ReferencedEnvelope(-48280.3, 48280.3, -48280.3, 48280.3, crs);
+		
+		/*
+		 * 1 mile has 1609.34 meters
+		 */
+		ReferencedEnvelope envelope = new ReferencedEnvelope((extent / 2) * 1609.34 * (-1), // min x
+				(extent / 2) * 1609.34, // max x
+				(extent / 2) * 1609.34 * (-1), // min y
+				(extent / 2) * 1609.34, // max x,
+				crs);
 
 		/*
 		 * @TODO Check that input point is within CONUS extent and that we can get elev data
@@ -104,43 +159,65 @@ public class LandscapeExportWPS implements GeoServerProcess {
 				.createGeometryCollection(new Geometry[] { JTS.toGeometry(coverageEnv) });
 
 		// perform the crops
-		final ParameterValueGroup param = PROCESSOR.getOperation("CoverageCrop").getParameters();
+		ParameterValueGroup param = PROCESSOR.getOperation("CoverageCrop").getParameters();
 		param.parameter("Source").setValue(coverage);
 		param.parameter("Envelope").setValue(bounds);
 		param.parameter("ROI").setValue(roi);
 
-		GridCoverage2D result = handleReprojection((GridCoverage2D) PROCESSOR.doOperation(param), crs,
+		GridCoverage2D result =  (GridCoverage2D) PROCESSOR.doOperation(param);
+		
+		/*
+		 * Should we rescale?:
+		 */
+		if (scaleFactor<1) {
+			
+			result = handleRescaling(result,
+					Interpolation.getInstance(Interpolation.INTERP_NEAREST), scaleFactor);
+		}
+		//resample:
+		
+		//reproject to custom CRS
+		result = handleReprojection(result, crs,
 				Interpolation.getInstance(Interpolation.INTERP_NEAREST), null);
 
-		return result;// geometryFactory.toGeometry(targetEnv);
+		
+		return result;
 	}
 
 	/**
+	 * Calculate the length for 1 degree longitude at input latitude
+	 * @param lon
+	 * @param lat
+	 * @return miles the length for 1 degree longitude
+	 */
+	private double calcOneDegreeLonLength (Double lon, Double lat) {
+		/** 
+		 * convert Input Latitude from dec degrees to radians:
+		 */
+		double rad = Math.toRadians(lat);
+		/**
+		 * Calculate cosine:
+		 */
+		double cos = Math.cos(rad);
+		/**
+		 * Calculate length of 1 degree longitude at input lat
+		 * in miles( 69.172 is the length in miles for 
+		 * 1 deg longitude at the equator):
+		 */
+		double miles = cos * 69.172;
+
+		return miles;
+	}
+	
+	/**
+	 * Parse a custom Albers Equal Area WKT definition with custom parallels.
+	 * 
 	 * @param lon
 	 * @param lat
 	 * @return custom Albers WKT centered at input coords, and with standard
 	 *         parallels 60 miles apart from each other.
 	 */
-	private String buildCustomAlbersWkt(Double lon, Double lat) {
-//		/** 
-//		 * convert Input Latitude from dec degrees to radians:
-//		 */
-//		double rad = Math.toRadians(lat);
-//		/**
-//		 * Calculate cosine:
-//		 */
-//		double cos = Math.cos(rad);
-//		/**
-//		 * Calculate length of 1 degree longitude at input lat
-//		 * in miles( 69.172 is the length in miles for 
-//		 * 1 deg longitude at the equator):
-//		 */
-//		double miles = cos * 69.172;
-//		/**
-//		 * We aim for 60 miles extent, 
-//		 * therefore calculate how many degrees longitude we should pad:
-//		 */
-//		double fraction = 60/miles;
+	private String buildCustomAlbersWkt(Double lon, Double lat, Integer extent) {
 
 		/*
 		 * One degree latitude is approx 69 miles. We are looking for 60 miles extent,
@@ -164,7 +241,7 @@ public class LandscapeExportWPS implements GeoServerProcess {
 			Interpolation spatialInterpolation, Hints hints) {
 		// checks
 		Utilities.ensureNonNull("interpolation", spatialInterpolation);
-		// check the two crs tosee if we really need to do anything
+		// check the two crs to see if we really need to do anything
 		if (CRS.equalsIgnoreMetadata(coverage.getCoordinateReferenceSystem2D(), targetCRS)) {
 			return coverage;
 		}
@@ -180,55 +257,43 @@ public class LandscapeExportWPS implements GeoServerProcess {
 		parameters.parameter("InterpolationType").setValue(spatialInterpolation);
 		return (GridCoverage2D) processor.doOperation(parameters);
 	}
-
-	/**
-	 * This method is responsible for cropping the provided {@link GridCoverage}
-	 * using the provided subset envelope.
-	 *
-	 * <p>
-	 * The subset envelope at this stage should be in the native crs.
-	 *
-	 * @param coverage the source {@link GridCoverage}
-	 * @param subset   an instance of {@link GeneralEnvelope} that drives the crop
-	 *                 operation.
-	 * @return a cropped version of the source {@link GridCoverage}
+	
+	/*
+	 * This method handles the scaling of a coverage, 
+	 * using "Resample" operation.
+	 * This is similar to the handleReprojection method, 
+	 * except resampled to a coarser GridGeometry.
+	 * The "Scale" Operation method wouldn't preserve NoData areas, 
+	 * hence using "Resample" again. 
 	 */
-	private List<GridCoverage2D> handleSubsettingExtension(GridCoverage2D coverage, WCSEnvelope subset, Hints hints) {
+	private GridCoverage2D handleRescaling(GridCoverage2D coverage,
+			Interpolation spatialInterpolation, double scaleFactor) {
+		// checks
+		Utilities.ensureNonNull("interpolation", spatialInterpolation);
+		//resample
+		final CoverageProcessor processor = CoverageProcessor.getInstance();
+		final Operation operation = processor.getOperation("Resample");
+		final ParameterValueGroup parameters = operation.getParameters();
+		parameters.parameter("Source").setValue(coverage);
+		parameters.parameter("InterpolationType").setValue(spatialInterpolation);
+		
+		/*
+		 * Should we rescale?:
+		 */
+		if (scaleFactor<1) {
+			GridGeometry2D curGridGeom = coverage.getGridGeometry();
+			Envelope curEnv = curGridGeom.getEnvelope2D();
 
-		List<GridCoverage2D> result = new ArrayList<GridCoverage2D>();
-		if (subset != null) {
-			if (subset.isCrossingDateline()) {
-				Envelope2D coverageEnvelope = coverage.getEnvelope2D();
-				GeneralEnvelope[] normalizedEnvelopes = subset.getNormalizedEnvelopes();
-				for (int i = 0; i < normalizedEnvelopes.length; i++) {
-					GeneralEnvelope ge = normalizedEnvelopes[i];
-					if (ge.intersects(coverageEnvelope, false)) {
-						GridCoverage2D cropped = cropOnEnvelope(coverage, ge);
-						result.add(cropped);
-					}
-				}
-			} else {
-				GridCoverage2D cropped = cropOnEnvelope(coverage, subset);
-				result.add(cropped);
-			}
+			GridEnvelope2D curGridEnv = curGridGeom.getGridRange2D();
+			// create new GridGeometry with current size*scaleFactor as many cells
+			GridEnvelope2D newGridEnv = new GridEnvelope2D(
+					curGridEnv.x, curGridEnv.y, ((int)(curGridEnv.width * scaleFactor)),
+					((int)(curGridEnv.height * scaleFactor)));
+			GridGeometry newGridGeom = new GridGeometry2D(newGridEnv, curEnv);
+			parameters.parameter("GridGeometry").setValue(newGridGeom);
+		}else {
+			parameters.parameter("GridGeometry").setValue(null);
 		}
-		return result;
-	}
-
-	private GridCoverage2D cropOnEnvelope(GridCoverage2D coverage, Envelope cropEnvelope) {
-		CoordinateReferenceSystem sourceCRS = coverage.getCoordinateReferenceSystem();
-		CoordinateReferenceSystem subsettingCRS = cropEnvelope.getCoordinateReferenceSystem();
-		try {
-			if (!CRS.equalsIgnoreMetadata(subsettingCRS, sourceCRS)) {
-				cropEnvelope = CRS.transform(cropEnvelope, sourceCRS);
-			}
-		} catch (TransformException e) {
-			throw new WCS20Exception("Unable to initialize subsetting envelope",
-					WCS20Exception.WCS20ExceptionCode.SubsettingCrsNotSupported, subsettingCRS.toWKT(), e);
-		}
-
-		GridCoverage2D cropped = WCSUtils.crop(coverage, cropEnvelope);
-		cropped = GridCoverageWrapper.wrapCoverage(cropped, coverage, null, null, false);
-		return cropped;
+		return (GridCoverage2D) processor.doOperation(parameters);
 	}
 }
