@@ -1,8 +1,8 @@
 #!/bin/bash
 
-export PATH=/opt/anaconda3/bin:/opt/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH=/mnt/opt/miniconda3/bin:/mnt/opt/miniconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-REST_URL="http://192.168.59.56:8081/geoserver/rest/workspaces"
+REST_URL="http://172.31.26.94:8081/geoserver/rest/workspaces"
 WORKSPACE="rtma"
 RTMA_DIR='/mnt/cephfs/wfas/data/rtma'
 DATASETS=('varanl' 'pcp' 'rhm')
@@ -146,7 +146,13 @@ do
 	rm -f ${i}
       fi
    done
-
+   #remove residual tif granules, if any:
+   for f in `find ${FILE_DIR}/tif/${var} -path '*rtma*_wexp' -type f|rev|cut -d '/' -f 1,2|rev`
+   do 
+	   if [ ! -f  ${FILE_DIR}/grb/$f ] ; then 
+		   rm ${FILE_DIR}/tif/${var}/${f} 
+	   fi 
+   done
    #Remove empty directories:
    find ${FILE_DIR}/tif/${var} -empty -type d -name 'rtma2p5.*' -delete
    (( counter++ ))
