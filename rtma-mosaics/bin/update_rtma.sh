@@ -1,21 +1,26 @@
 #!/bin/bash
 
-export PATH=/mnt/opt/miniconda3/bin:/mnt/opt/miniconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH=/opt/anaconda3/bin:/opt/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-REST_URL="http://172.31.26.94:8081/geoserver/rest/workspaces"
+REST_URL="http://192.168.59.56:8081/geoserver/rest/workspaces"
 WORKSPACE="rtma"
 RTMA_DIR='/mnt/cephfs/wfas/data/rtma'
 DATASETS=('varanl' 'pcp' 'rhm')
 PATTERNS=('rtma2p5.*.2dvaranl_ndfd.grb2_wexp' 'rtma2p5.*.pcp.184.grb2' 'rtma2p5.*.2dvaranl_ndfd.grb2_wexp')
-VARS=('2t' '2r' 'tp' '10si' '10wdir' 'tcc') 
-EXTRACT_FROM=('varanl' 'rhm' 'pcp' 'varanl' 'varanl' 'varanl')
-BAND=(3 1 1 9 8 13)
+VARS=('2t' '2r' 'tp' '10si' '10wdir' 'tcc' 'solar') 
+EXTRACT_FROM=('varanl' 'rhm' 'pcp' 'varanl' 'varanl' 'varanl' 'varanl')
+BAND=(3 1 1 9 8 13 0)
 PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs'
 RHM_SRS='+proj=lcc +lat_0=0 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6367470 +units=m +no_defs'
 counter=0
 
 #GDAL exports:
 export GRIB_NORMALIZE_UNITS=no #keep original units
+export GDAL_DATA=/mnt/cephfs/gdal_data
+
+#Windninja data:
+export WINDNINJA_DATA=/mnt/cephfs/wfas/bin
+ELEV_FILE=${RTMA_DIR}/rtma_dem.tif
 
 function derive_rhm {
    for src in `find ${RTMA_DIR}/varanl/grb -name '*_wexp' |sort`
@@ -30,6 +35,24 @@ function derive_rhm {
      fi
    done
 }		      
+
+function compute_solar_file {
+   if [ -f ${1} ]; then
+      minute=0
+      hour=${1:68:2}
+      day=${1:56:2}
+      month=${1:54:2}
+      year=${1:50:4}
+      /mnt/cephfs/wfas/bin/solar_grid --cloud-file ${1} \
+	      --num-threads 4 --day ${day} --month ${month} \
+	      --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
+	      ${ELEV_FILE} ${2}.asc
+      gdal_translate -q -ot Int16 -of GTiff -co 'NUM_THREADS=ALL_CPUS' -co 'PROFILE=GeoTIFF' \
+	      -co 'TILED=YES' -co 'NUM_THREADS=ALL_CPUS' \
+	      ${2}.asc ${2}
+      rm ${2}.{asc,prj}
+   fi
+}
 
 function remove_file_from_mosaic {
    #Get a list of coverages for this mosaic:
@@ -120,8 +143,13 @@ do
 	if [ ${var} = '2r' ]; then
 		PROJ4_SRS=${RHM_SRS}
 	fi
-	gdal_translate -of GTiff -co PROFILE=GeoTIFF -co TILED=YES -a_srs "${PROJ4_SRS}" \
-		-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
+	if [ ${var} = 'solar' ]; then
+		compute_solar_file ${FILE_DIR}/tif/tcc/${f} ${FILE_DIR}/tif/${var}/${f}
+	else
+		gdal_translate -of GTiff -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co NUM_THREADS=ALL_CPUS \
+			-co TILED=YES -a_srs "${PROJ4_SRS}" \
+			-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
+	fi
 	rm ${FILE_DIR}/tif/${var}/${f}.aux.xml
 	#add new file to mosaic:
 	curl -s -u admin:geoserver -XPOST \
