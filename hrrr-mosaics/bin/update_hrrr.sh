@@ -11,10 +11,10 @@ FUNCTION=('' '' '' '' '' '' 'derive_wdir' '' '')
 LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' 
 	'2_m_above_ground' '10_m_above_ground' '10_m_above_ground' 'surface') 
 
-DATASETS=('WDIR') 
-DERIVED=(1) #is the dataset downloaded, or derived from other variables?
-FUNCTION=('derive_wdir') 
-LEVEL=('10_m_above_ground')
+#DATASETS=('WDIR') 
+#DERIVED=(1) #is the dataset downloaded, or derived from other variables?
+#FUNCTION=('derive_wdir') 
+#LEVEL=('10_m_above_ground')
 
 counter=0 
 
@@ -31,6 +31,7 @@ FORECAST=`curl -s -l https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/|c
 export GRIB_NORMALIZE_UNITS=no #keep original units
 export GDAL_DATA=/mnt/cephfs/gdal_data
 GEOTIFF_OPTIONS='-co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co TILED=YES -co NUM_THREADS=ALL_CPUS'
+GEOTIFF_BOUNDS='-2699020.247 1588193.877 2697979.753 -1588806.123'
 HRRR_PROJ='+proj=lcc +lat_1=38.5 +lat_2=38.5 +lat_0=38.5 +lon_0=-97.5 +x_0=0 +y_0=0 +a=6371229 +b=6371229 +units=m +no_defs '
 
 #Windninja data:
@@ -39,20 +40,15 @@ export WINDNINJA_DATA=/mnt/cephfs/wfas/bin
 function derive_wdir {
    for h in `seq -w 00 1 36`
    do 
-      #cdo -s -O -P 4 -invertlat -expr,'10wdir=((10u<0)) ? 360+10u:10u;' -mulc,57.3 -atan2 -mulc,-1 \
-	      #${HRRR_DIR}/UGRD/${FILENAME}${h}.grib2 -mulc,-1 \
-	      #${HRRR_DIR}/VGRD/${FILENAME}${h}.grib2 \
-	      #${HRRR_DIR}/WDIR/${FILENAME}${h}.nc
+      cdo -s -O -P 4 -invertlat -expr,'10wdir=((10u<0)) ? 360+10u:10u;' -mulc,57.3 -atan2 -mulc,-1 \
+	      ${HRRR_DIR}/UGRD/${FILENAME}${h}.grib2 -mulc,-1 \
+	      ${HRRR_DIR}/VGRD/${FILENAME}${h}.grib2 \
+	      ${HRRR_DIR}/WDIR/${FILENAME}${h}.grib2
       t=`cdo -s showtimestamp -seltimestep,1 ${HRRR_DIR}/UGRD/${FILENAME}${h}.grib2`
       date=`date  -d $t +'%Y%m%d%H%M'` 
-      #gdal_translate -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${HRRR_PROJ}" -b 1 ${HRRR_DIR}/WDIR/${FILENAME}${h}.nc \
-	      #${HRRR_DIR}/WDIR/${date}.tif
-      gdal_calc.py --quiet --format=GTiff -A ${HRRR_DIR}/UGRD/${FILENAME}${h}.grib2 -B ${HRRR_DIR}/VGRD/${FILENAME}${h}.grib2 \
-		--A_band=1 --B_band=1 \
-		--calc='where(57.3*arctan2(-1*A,-1*B)<0,360+(57.3*arctan2(-1*A,-1*B)),57.3*arctan2(-1*A,-1*B))' \
-		--co=PROFILE=GeoTIFF --co=COMPRESS=DEFLATE --co=TILED=YES --co=NUM_THREADS=ALL_CPUS \
-   		--outfile=${HRRR_DIR}/WDIR/${date}.tif
-      gdal_edit.py -a_srs "${HRRR_PROJ}" ${HRRR_DIR}/WDIR/${date}.tif
+      gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_ullr ${GEOTIFF_BOUNDS} -a_srs "${HRRR_PROJ}" \
+	      -b 1 ${HRRR_DIR}/WDIR/${FILENAME}${h}.grib2 \
+	      ${HRRR_DIR}/WDIR/${date}.tif
    done
 }
 
@@ -90,7 +86,7 @@ do
 	#/	${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
          t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/${FILENAME}${h}.grib2`
          date=`date -d ${t} +'%Y%m%d%H%M'` 
-         gdal_translate -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${HRRR_PROJ}" \
+         gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${HRRR_PROJ}" \
 		-b 1 ${FILE_DIR}/${FILENAME}${h}.grib2 \
 		${FILE_DIR}/${date}.tif
       done
