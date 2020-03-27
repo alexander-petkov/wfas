@@ -5,6 +5,8 @@ export PATH=/opt/anaconda3/bin:/opt/anaconda3/condabin:/usr/local/sbin:/usr/loca
 REST_URL="http://192.168.59.56:8081/geoserver/rest/workspaces"
 WORKSPACE="rtma"
 RTMA_DIR='/mnt/cephfs/wfas/data/rtma'
+RTMA_FTP='ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod'
+REMOTE_FILES=() #initially empty array
 DATASETS=('varanl' 'pcp' 'rhm')
 PATTERNS=('rtma2p5.*.2dvaranl_ndfd.grb2_wexp' 'rtma2p5.*.pcp.184.grb2' 'rtma2p5.*.2dvaranl_ndfd.grb2_wexp')
 VARS=('2t' '2r' 'tp' '10si' '10wdir' 'tcc' 'solar') 
@@ -29,7 +31,7 @@ function derive_rhm {
      if [ ! -f ${RTMA_DIR}/rhm/grb/${f} ] ; then
        dirname=`echo ${src}|cut -d '/' -f 9`
        mkdir -p ${RTMA_DIR}/rhm/grb/${dirname}      
-       cdo invertlat \
+       cdo -s invertlat \
 		-expr,'2r=(exp(1.81+(2d*17.27- 4717.31) / (2d - 35.86))/exp(1.81+(2t*17.27- 4717.31) / (2t - 35.86)))*100' \
 		${src} ${RTMA_DIR}/rhm/grb/$f
      fi
@@ -67,23 +69,40 @@ function remove_file_from_mosaic {
 }
 
 function download_varanl {
-   wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=${1} -N  --no-parent \
-      -A${PATTERNS[counter]} \
-      ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/rtma2p5.*
+   for file in ${REMOTE_FILES[@]}
+   do
+      wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=${1} -N  --no-parent \
+         -A${PATTERNS[counter]} \
+         ${RTMA_FTP}/${file}
+   done
+   #printf "${RTMA_FTP}"/'%s\n' "${REMOTE_FILES[@]}" \
+   #	   | xargs -P10  wget -q --cut-dirs 6 -c -i --directory-prefix=${1}  
 }
 
 function download_pcp {
-   #Rewrite downloaded varanl file names to pcp, and download only those.
+   #Rewrite downloaded varanl file names to pcp file names, and download only those.
    #This is to ensure that varanl and pcp archives are with aligned timesteps.
-   PCP_FILES=(`find $RTMA_DIR/varanl/grb -name *wexp |cut -d '/' -f 9-|awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'|sort`)
+   PCP_FILES=(`printf '%s\n' "${REMOTE_FILES[@]}"| \
+	   awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'|sort`)
    
-   for f in ${PCP_FILES[@]}
+   #printf "${RTMA_FTP}"/'%s\n' "${PCP_FILES[@]}" \
+   #	   | xargs -P10  wget -q --cut-dirs 6 -xnH -c -i --directory-prefix=${1} -N 
+   for file in ${PCP_FILES[@]}
    do
       wget -q --cut-dirs 6 -xnH -c --directory-prefix=${1} -N  --no-parent \
-	   ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/${f}
+   	   ${RTMA_FTP}/${file}
    done
 }
-  
+
+#Build a list of files on the ftp server:
+for d in `curl -s --list-only ${RTMA_FTP}/|grep 'rtma2p5\.'|sort` #a list of directories from ftp
+do 
+	for f in `curl -s --list-only ${RTMA_FTP}/${d}/ | grep 'varanl_ndfd'|sort` #list varanl files in each directory
+	do 
+		REMOTE_FILES+=(`echo ${d}/${f}`) #add element to array
+	done
+done
+
 #loop over RTMA datasets:
 for d in ${DATASETS[@]}
 do 
@@ -100,25 +119,23 @@ do
    fi
    
    #Sorted list of locally stored Grib files:
-   CUR_FILES=(`find ${FILE_DIR}/grb -name ${PATTERNS[counter]} |sort`)
-   for i in ${CUR_FILES[@]}
+   LOCAL_FILES=(`find ${FILE_DIR}/grb -name '*'${PATTERNS[counter]}'*' |cut -d '/' -f 9-|sort`)
+   if [ ${d} = 'pcp' ] ; then
+	#rewrite pcp file name to a coresponding time step varanl name,
+	#so we keep pcp archive aligned with varanl in time
+	LOCAL_FILES=(`printf '%s\n' "${LOCAL_FILES[@]}"| \
+		awk '{print substr($0,1,17) substr($0,18,7) ".t" substr($0,34,2) "z.2dvaranl_ndfd.grb2_wexp"}'`)
+   fi 
+   TO_DELETE=(`echo ${LOCAL_FILES[@]} ${REMOTE_FILES[@]} ${REMOTE_FILES[@]} \
+	   | tr ' ' '\n' | sort | uniq -u`)
+   for i in ${TO_DELETE[@]}
    do 
-      f=`echo ${i}|cut -d '/' -f 9-` #get last two tokens, containing dir and file name
-      
       if [ ${d} = 'pcp' ] ; then
-	 #rewrite pcp file name to a coresponding time step varanl name,
-         #so we keep pcp archive aligned with varanl in time
-	 f=`echo ${f}|awk '{print substr($0,1,17) substr($0,18,7) ".t" substr($0,34,2) "z.2dvaranl_ndfd.grb2_wexp"}'`
-      fi; 
-     
-      if ! curl -I ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod/$f; then
-         #remove old granule from system:
-         subdir=`echo ${i}|cut -d '/' -f 9`
-         to_delete=`echo ${i}|cut -d '/' -f 10` #extract filename
-	 find $FILE_DIR/grb -path '*'$subdir/${to_delete} -delete
-      else
-         break;
-      fi;
+	      #rewrite back to pcp file name:
+	      i=`echo ${i}|awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'`
+      fi
+      #remove old granule from system:
+      find $FILE_DIR/grb -path '*'${i} -delete
    done
    #Remove empty directories:
    find ${FILE_DIR}/grb -empty -type d -name 'rtma2p5.*' -delete
@@ -146,7 +163,7 @@ do
 	if [ ${var} = 'solar' ]; then
 		compute_solar_file ${FILE_DIR}/tif/tcc/${f} ${FILE_DIR}/tif/${var}/${f}
 	else
-		gdal_translate -of GTiff -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co NUM_THREADS=ALL_CPUS \
+		gdal_translate -q -of GTiff -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co NUM_THREADS=ALL_CPUS \
 			-co TILED=YES -a_srs "${PROJ4_SRS}" \
 			-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	fi
