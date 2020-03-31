@@ -57,7 +57,7 @@ for d in ${FULLDIRS[@]}
 do 
 	mkdir -p ${NETCDF_OUTPUT_DIR}/${d}
 	if [ ! -f ${NETCDF_OUTPUT_DIR}/${d}.nc ]; then
-	   for f in `find ${RTMA_DATA_DIR}/varanl/tif/tcc/${d}/*_wexp|sort |head -n 3`
+	   for f in `find ${RTMA_DATA_DIR}/varanl/tif/tcc/${d}/*_wexp`
 	   do
 		filename=`echo ${f}|rev|cut -d '/' -f 1|rev`
 	   	compute_solar_file ${f} ${NETCDF_OUTPUT_DIR}/${d}/${filename}
