@@ -55,23 +55,23 @@ FULLDIRS=(`printf '%s\n' "${FULLDIRS[@]}"|sort |uniq -c|grep '3 rtma'|cut -d ' '
 #loop over directories:
 for d in ${FULLDIRS[@]}
 do 
-	mkdir -p ${NETCDF_OUTPUT_DIR}/${d}
 	if [ ! -f ${NETCDF_OUTPUT_DIR}/${d}.nc ]; then
+	   mkdir -p ${NETCDF_OUTPUT_DIR}/${d}
 	   for f in `find ${RTMA_DATA_DIR}/varanl/tif/tcc/${d}/*_wexp`
 	   do
 		filename=`echo ${f}|rev|cut -d '/' -f 1|rev`
 	   	compute_solar_file ${f} ${NETCDF_OUTPUT_DIR}/${d}/${filename}
 		PCP_FILE=`echo ${d}/${filename}| \
 			awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'`
-		cdo -P 4 -f nc4  -merge -selname,2t,10wdir,10si ${RTMA_DATA_DIR}/varanl/grb/${d}/${filename} \
+		cdo -P 4 -f nc4  -merge -setgrid,${VARANL_GRID} -selname,2t,10wdir,10si ${RTMA_DATA_DIR}/varanl/grb/${d}/${filename} \
 			-setgrid,${VARANL_GRID} -invertlat ${RTMA_DATA_DIR}/rhm/grb/${d}/${filename} \
 			-remapycon,${VARANL_GRID} ${RTMA_DATA_DIR}/pcp/grb/${PCP_FILE}  \
 			${NETCDF_OUTPUT_DIR}/${d}/${filename}.solar ${NETCDF_OUTPUT_DIR}/${d}/${filename}.nc
 	   done
    	   #merge all files for this 24-hour period:
-	   cdo -P 4 -f nc4 invertlat -setgatt,history,"merged all timesteps" -mergetime ${NETCDF_OUTPUT_DIR}/${d}/*.nc ${NETCDF_OUTPUT_DIR}/${d}.nc
+	   cdo -P 4 -f nc4 -setgatt,history,"merged all timesteps" -mergetime ${NETCDF_OUTPUT_DIR}/${d}/*.nc ${NETCDF_OUTPUT_DIR}/${d}.nc
 	   #clean up:
-	   #rm -rf ${NETCDF_OUTPUT_DIR}/${d}	   
+	   rm -rf ${NETCDF_OUTPUT_DIR}/${d}	   
 	fi
 done
 
