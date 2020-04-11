@@ -257,15 +257,13 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 				  = Executors.newFixedThreadPool(ciList.size());
 				
 			for (CoverageInfo ci : ciList) { 
-				//CoverageInfo ci = ciList.fstream().filter(cInfo->cname.equals(cInfo.getName())).findFirst();//catalog.getCoverageByName(ns, cname); 
-				// transform the input point coords to coverage CRS:
 				WORKER_THREAD_POOL.execute(new Runnable(){
 					@Override
 					public void run(){
+				// transform the input point coords to coverage CRS:
 				Point transPoint = null;
 				try { 
-					transform =
-								CRS.findMathTransform(CRS.decode("EPSG:" + input.getSRID()), ci.getCRS());
+					transform = CRS.findMathTransform(CRS.decode("EPSG:" + input.getSRID()), ci.getCRS());
 						transPoint = (Point) JTS.transform(input, transform); 
 						transPoint.setSRID(Integer.parseInt(CRS.toSRS(ci.getCRS(),true)));
 				} catch (Exception e) { 
@@ -287,28 +285,6 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 				} catch (ClassCastException e) { 
 					// TODO Auto-generated catch block break; }
 				}
-				//final ParameterValue<List> time = ImageMosaicFormat.TIME.createValue();
-//				String timestamps = reader.getMetadataValue(GridCoverage2DReader.TIME_DOMAIN);
-//				List <String> tList= Arrays.asList(timestamps.split(","));
-//				
-//				Collections.sort(tList);
-//				//csvWriter.append(String.join( "; " , ci.getName(), reader.getMetadataValue(GridCoverage2DReader.TIME_DOMAIN), "\n"));
-//				String coverageName = ci.getNativeCoverageName(); 
-//				
-//				if (coverageName == null) {
-//					coverageName = reader.getGridCoverageNames()[0]; 
-//				} 
-//				
-//				GranuleSource granules =
-//										reader.getGranules(coverageName, true); 
-//				// set up sorting by timestamp: 
-//				Query q = new Query(granules.getSchema().getTypeName());
-//				final SortBy[] granuleSort = new SortBy[] {
-//						new SortByImpl(FeatureUtilities.DEFAULT_FILTER_FACTORY.property("time"), SortOrder.ASCENDING) };
-//				q.setSortBy(granuleSort); 
-//				SimpleFeatureCollection fc = granules.getGranules(q); 
-//				SimpleFeatureIterator iterator = fc.features();
-
 
 						GridCoverage2D gc = null;
 						try {
@@ -381,9 +357,6 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 					e.printStackTrace();
 				}
 
-//				} finally {
-//					iterator.close(); 
-//			    }cal.get(Calendar.MONTH)
 				csvWriter.append( (cal.get(Calendar.YEAR)) 
 						+ String.format("%1$5s", cal.get(Calendar.MONTH)+1)
 						+ String.format("%1$5s", cal.get(Calendar.DATE))
@@ -395,44 +368,18 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 						+ String.format("%1$9s", new DecimalFormat("#").format(wr.ws))
 						+ String.format("%1$9s", new DecimalFormat("#").format(wr.wd))
 						+ String.format("%1$6s", new DecimalFormat("#").format(wr.cc)) + "\n");
-				//csvWriter.append("\n");
 			}//end for	date
 			String lastTimeStep = tList.get(tList.size()-1);
 			lastDate = dFormat.parse(lastTimeStep.substring(0, lastTimeStep.length()-1));
 			lastTimeStep=null;
 		}//end for
 
-		/*
-		 * CoverageInfo ci = catalog.getCoverageByName("cite","Relative_humidity"); if
-		 * (ci == null) { throw new WPSException("Could not find coverage..."); }
-		 * 
-		 * ImageMosaicReader reader = new ImageMosaicReader(ci.getStore().getURL(),
-		 * null); final ParameterValueGroup readParametersDescriptor =
-		 * reader.getFormat().getReadParameters(); final
-		 * List<GeneralParameterDescriptor> parameterDescriptors =
-		 * readParametersDescriptor.getDescriptor().descriptors();
-		 * 
-		 * List<CoverageDimensionInfo> dims = ci.getDimensions(); for
-		 * (CoverageDimensionInfo param : dims) { csvWriter.append(String.join(",",
-		 * param.getName(), param.getDescription()));
-		 * 
-		 * csvWriter.append("\n"); }
-		 */
 		csvWriter.flush();
 		csvWriter.close();
 
 		return new ByteArrayRawData(out.toByteArray(), "text/csv", "csv");
 	}
 	
-//	/*
-//	 * Check whether the input point is 
-//	 * within the overlapping extent 
-//	 * for the 3 datasets (rtma, ndfd and gfs)
-//	 */
-//	private boolean  checkWithin (Point input) {
-//		boolean isWithin;
-//		return isWithin;
-//	}
 }//end class
 /*
  * @author Alexander Petkov
