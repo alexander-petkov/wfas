@@ -56,6 +56,7 @@ import org.opengis.filter.FilterFactory2;
 import org.opengis.geometry.MismatchedDimensionException;
 import org.opengis.parameter.GeneralParameterValue;
 import org.opengis.parameter.ParameterValue;
+import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.MathTransform;
 
 import systems.uom.common.USCustomary;
@@ -66,7 +67,6 @@ import tec.uom.se.unit.Units;
 public class WeatherStreamThreadedWPS implements GeoServerProcess {
 	private Catalog catalog;
 	//private StructuredGridCoverage2DReader reader = null;
-	private MathTransform transform;
 	private Point input;
 	private Point transPoint;
 	private DateFormat dFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
@@ -174,18 +174,7 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 		GridCoverageReader dgc = dem.getGridCoverageReader(null, null);
 		GridCoverage dc = dgc.read(null);
 		
-		/*
-		 * @TODO: extract Coordinate transformation
-		 * code to a method. 
-		 */
-		try { 
-			transform =
-						CRS.findMathTransform(CRS.decode("EPSG:" + input.getSRID()), dem.getCRS());
-				transPoint = (Point) JTS.transform(input, transform);
-				transPoint.setSRID(Integer.parseInt(CRS.toSRS(dem.getCRS(),true)));
-		} catch (Exception e) { 
-			//TODO Auto-generated catch block e.printStackTrace(csvWriter); }
-		}
+		transPoint = transformPoint(input, dem.getCRS());
 		Number height = (Number) Array.get(dc.evaluate(new DirectPosition2D(transPoint.getX(),
 				transPoint.getY())),0);
 		
@@ -260,32 +249,9 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 				WORKER_THREAD_POOL.execute(new Runnable(){
 					@Override
 					public void run(){
-				// transform the input point coords to coverage CRS:
-				Point transPoint = null;
-				try { 
-					transform = CRS.findMathTransform(CRS.decode("EPSG:" + input.getSRID()), ci.getCRS());
-						transPoint = (Point) JTS.transform(input, transform); 
-						transPoint.setSRID(Integer.parseInt(CRS.toSRS(ci.getCRS(),true)));
-				} catch (Exception e) { 
-					//TODO Auto-generated catch block e.printStackTrace(csvWriter); }
-				}
-
-				GridCoverageReader genericReader = null;
-				try {
-					genericReader = ci.getGridCoverageReader(null, null);
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				} 
-				// we have a descriptor, now we need to find the association between the exposed 
-				//dimension names and the granule source attributes
-				StructuredGridCoverage2DReader reader = null; 
-				try { 
-					reader = (StructuredGridCoverage2DReader) genericReader; 
-				} catch (ClassCastException e) { 
-					// TODO Auto-generated catch block break; }
-				}
-
+						// transform the input point coords to coverage CRS:
+						transPoint = transformPoint(input,ci.getCRS());
+						StructuredGridCoverage2DReader reader = getCoverageReader(ci);
 						GridCoverage2D gc = null;
 						try {
 							gc = reader.read(values);
@@ -296,59 +262,11 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 															
 						Number val = (Number) Array.get(gc.evaluate(new DirectPosition2D(transPoint.getX(),
 																	transPoint.getY())),0); 
-						switch (ci.getName()) {
-						case "Temperature":
-							Quantity<Temperature> tmpQt;
-							if (useEnglishUnits) {
-								tmpQt = Quantities.getQuantity(val.floatValue(), Units.KELVIN)
-										.to(USCustomary.FAHRENHEIT);
-								
-							} else {//convert to Celsius
-								tmpQt = Quantities.getQuantity(val.floatValue(), Units.KELVIN)
-										.to(Units.CELSIUS);
-							}
-							wr.tmp = tmpQt.getValue().intValue();
-							tmpQt = null;
-							break;
-						case "Relative_humidity":
-							wr.rh = val.floatValue();
-							break;
-						case "Total_precipitation":
-							/*
-							 * all datasets provide precip in kg/m2 units which is the same as mm per time
-							 * period
-							 */
-							Quantity<Length> l;
-							if (useEnglishUnits) {
-								l =  Quantities.getQuantity(val.floatValue()/1000,Units.METRE)
-										.to(USCustomary.INCH);
-								wr.tp =l.getValue().floatValue();
-							} else {
-								wr.tp = val.floatValue();
-							}
-							break;
-						case "Wind_speed":
-							Quantity<Speed> ws;
-							if (useEnglishUnits) {
-								ws= Quantities.getQuantity(val, Units.METRE_PER_SECOND)
-										.to(USCustomary.MILE_PER_HOUR);
-							} else {
-								ws= Quantities.getQuantity(val, Units.METRE_PER_SECOND)
-										.to(Units.KILOMETRE_PER_HOUR);
-							}
-							wr.ws = ws.getValue().floatValue();
-							break;
-						case "Wind_direction":
-							wr.wd = val.floatValue();
-							break;
-						case "Cloud_cover":
-							wr.cc = val.floatValue();
-							break;
-						}
+						UnitFormatter.format(ci, val, useEnglishUnits, wr);
 						gc.dispose(false); 	
-						}//end run
-					});//end execute
-					} //end for Coverage
+					}//end run
+				});//end execute
+			} //end for Coverage
 				WORKER_THREAD_POOL.shutdown();
 				try {
 					WORKER_THREAD_POOL.awaitTermination(1, TimeUnit.MINUTES);
@@ -379,6 +297,47 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 
 		return new ByteArrayRawData(out.toByteArray(), "text/csv", "csv");
 	}
+
+	/**
+	 * @param ci
+	 * @return
+	 */
+	private StructuredGridCoverage2DReader getCoverageReader(CoverageInfo ci) {
+		GridCoverageReader genericReader = null;
+		try {
+			genericReader = ci.getGridCoverageReader(null, null);
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} 
+		// we have a descriptor, now we need to find the association between the exposed 
+		//dimension names and the granule source attributes
+		StructuredGridCoverage2DReader reader = null; 
+		try { 
+			reader = (StructuredGridCoverage2DReader) genericReader; 
+		} catch (ClassCastException e) { 
+			// TODO Auto-generated catch block break; }
+		}
+		return reader;
+	}
+	/**
+	 * @param input Point to be translated
+	 * @param targetCRS
+	 * @return transPoint translated point 
+	 */
+	private Point transformPoint(Point inputPoint, CoordinateReferenceSystem targetCRS) {
+		MathTransform transform;
+		Point transPoint = null;
+		try { 
+			transform =
+						CRS.findMathTransform(CRS.decode("EPSG:" + inputPoint.getSRID()), targetCRS);
+				transPoint = (Point) JTS.transform(inputPoint, transform);
+				transPoint.setSRID(Integer.parseInt(CRS.toSRS(targetCRS,true)));
+		} catch (Exception e) { 
+			//TODO Auto-generated catch block e.printStackTrace(csvWriter); }
+		}
+		return transPoint;
+	}//end transformPoint
 	
 }//end class
 /*
@@ -395,3 +354,57 @@ class WeatherRecordThreaded{
 	  float ws;
 	  float cc; 
  }
+
+class UnitFormatter{
+	static void format(CoverageInfo ci, Number val, Boolean useEnglishUnits, WeatherRecordThreaded wr) {
+		switch (ci.getName()) {
+		case "Temperature":
+			Quantity<Temperature> tmpQt;
+			if (useEnglishUnits) {
+				tmpQt = Quantities.getQuantity(val.floatValue(), Units.KELVIN)
+						.to(USCustomary.FAHRENHEIT);
+				
+			} else {//convert to Celsius
+				tmpQt = Quantities.getQuantity(val.floatValue(), Units.KELVIN)
+						.to(Units.CELSIUS);
+			}
+			wr.tmp = tmpQt.getValue().intValue();
+			tmpQt = null;
+			break;
+		case "Relative_humidity":
+			wr.rh = val.floatValue();
+			break;
+		case "Total_precipitation":
+			/*
+			 * all datasets provide precip in kg/m2 units which is the same as mm per time
+			 * period
+			 */
+			Quantity<Length> l;
+			if (useEnglishUnits) {
+				l =  Quantities.getQuantity(val.floatValue()/1000,Units.METRE)
+						.to(USCustomary.INCH);
+				wr.tp =l.getValue().floatValue();
+			} else {
+				wr.tp = val.floatValue();
+			}
+			break;
+		case "Wind_speed":
+			Quantity<Speed> ws;
+			if (useEnglishUnits) {
+				ws= Quantities.getQuantity(val, Units.METRE_PER_SECOND)
+						.to(USCustomary.MILE_PER_HOUR);
+			} else {
+				ws= Quantities.getQuantity(val, Units.METRE_PER_SECOND)
+						.to(Units.KILOMETRE_PER_HOUR);
+			}
+			wr.ws = ws.getValue().floatValue();
+			break;
+		case "Wind_direction":
+			wr.wd = val.floatValue();
+			break;
+		case "Cloud_cover":
+			wr.cc = val.floatValue();
+			break;
+		}//end switch	
+	}//end format 	
+}//end class
