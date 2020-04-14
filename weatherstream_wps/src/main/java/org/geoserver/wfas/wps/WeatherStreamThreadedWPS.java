@@ -81,15 +81,12 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 	//private List<String> coveragesList = Arrays.asList("Temperature");//, "Relative_humidity", "Total_precipitation",
 			//"Wind_speed", "Wind_direction", "Cloud_cover");
 
-	/* GeometryFactory will be used to create 
-	 * the Point geometry for which we should query
+	/* 
+	 * GeometryFactory will be used
+	 * to create a Point geometry   
+	 * from user input coordinates
 	 */
 	GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
-	
-	/*
-	 * The overlapping extent for all 3 datasets
-	 */
-	Geometry envelope= null;
 	
 	private String getTimeZoneId(Point p) {
 		FeatureTypeInfo timezones = this.catalog.getFeatureTypeByName("osm", "timezones" );
@@ -178,9 +175,6 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 		Number height = (Number) Array.get(dc.evaluate(new DirectPosition2D(transPoint.getX(),
 				transPoint.getY())),0);
 		
-
-
-
 		/*
 		 * quit if out of bounds, or NaN 
 		 * elevation value for requested coordinates
@@ -245,27 +239,27 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 				ExecutorService WORKER_THREAD_POOL 
 				  = Executors.newFixedThreadPool(ciList.size());
 				
-			for (CoverageInfo ci : ciList) { 
-				WORKER_THREAD_POOL.execute(new Runnable(){
-					@Override
-					public void run(){
-						// transform the input point coords to coverage CRS:
-						transPoint = transformPoint(input,ci.getCRS());
-						StructuredGridCoverage2DReader reader = getCoverageReader(ci);
-						GridCoverage2D gc = null;
-						try {
-							gc = reader.read(values);
-						} catch (IOException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-															
-						Number val = (Number) Array.get(gc.evaluate(new DirectPosition2D(transPoint.getX(),
-																	transPoint.getY())),0); 
-						UnitFormatter.format(ci, val, useEnglishUnits, wr);
-						gc.dispose(false); 	
-					}//end run
-				});//end execute
+				for (CoverageInfo ci : ciList) { 
+					WORKER_THREAD_POOL.execute(new Runnable(){
+						@Override
+						public void run(){//start a thread for each coverage for this time step
+							// transform the input point coords to coverage CRS:
+							transPoint = transformPoint(input,ci.getCRS());
+							StructuredGridCoverage2DReader reader = getCoverageReader(ci);
+							GridCoverage2D gc = null;
+							try {
+								gc = reader.read(values);
+							} catch (IOException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							}
+
+							Number val = (Number) Array.get(gc.evaluate(new DirectPosition2D(transPoint.getX(),
+									transPoint.getY())),0); 
+							UnitFormatter.format(ci, val, useEnglishUnits, wr);
+							gc.dispose(false); 	
+						}//end run
+					});//end execute
 			} //end for Coverage
 				WORKER_THREAD_POOL.shutdown();
 				try {
@@ -299,8 +293,8 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 	}
 
 	/**
-	 * @param ci
-	 * @return
+	 * @param ci CoverageInfo
+	 * @return reader StructuredGridCoverage2DReader
 	 */
 	private StructuredGridCoverage2DReader getCoverageReader(CoverageInfo ci) {
 		GridCoverageReader genericReader = null;
@@ -340,7 +334,7 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 	}//end transformPoint
 	
 }//end class
-/*
+/**
  * @author Alexander Petkov
  * A Class structure to hold 
  * Flammamp Wxs weather data
@@ -355,6 +349,11 @@ class WeatherRecordThreaded{
 	  float cc; 
  }
 
+/**
+ * @author Alexander Petkov
+ * A Class to format and transform
+ * coverage results to scientific units 
+ */
 class UnitFormatter{
 	static void format(CoverageInfo ci, Number val, Boolean useEnglishUnits, WeatherRecordThreaded wr) {
 		switch (ci.getName()) {
