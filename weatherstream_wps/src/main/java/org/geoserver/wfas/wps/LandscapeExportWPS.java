@@ -1,25 +1,18 @@
 package org.geoserver.wfas.wps;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.media.jai.Interpolation;
 
-import org.geoserver.catalog.CoverageDimensionCustomizerReader.GridCoverageWrapper;
-import org.geoserver.wcs2_0.WCSEnvelope;
-import org.geoserver.wcs2_0.exception.WCS20Exception;
 import org.geoserver.wps.gs.GeoServerProcess;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridEnvelope2D;
 import org.geotools.coverage.grid.GridGeometry2D;
-import org.geotools.coverage.grid.InvalidGridGeometryException;
 import org.geotools.coverage.grid.io.imageio.GeoToolsWriteParams;
 import org.geotools.coverage.processing.CoverageProcessor;
 import org.geotools.gce.geotiff.GeoTiffWriteParams;
-import org.geotools.geometry.Envelope2D;
 import org.geotools.geometry.GeneralEnvelope;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.JTSFactoryFinder;
@@ -35,8 +28,6 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
-import org.opengis.coverage.Coverage;
-import org.opengis.coverage.grid.GridCoverage;
 import org.opengis.coverage.grid.GridGeometry;
 import org.opengis.coverage.processing.Operation;
 import org.opengis.geometry.Envelope;
@@ -46,8 +37,8 @@ import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.MathTransform;
 import org.opengis.referencing.operation.TransformException;
-import org.vfny.geoserver.util.WCSUtils;
 
+import it.geosolutions.jaiext.range.RangeFactory;
 @DescribeProcess(title = "Landscape export", description = "A Web Processing Service which exports an 8-band Lanscape Geotiff suitable for use in Flammap/Farsite")
 public class LandscapeExportWPS implements GeoServerProcess {
 	private final static GeoTiffWriteParams DEFAULT_WRITE_PARAMS;
@@ -154,6 +145,12 @@ public class LandscapeExportWPS implements GeoServerProcess {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
+		/**
+		 * Expand this envelope, so after reprojection, 
+		 * rotation and cropping, the result won't have
+		 * large nodata areas.
+		 */
+		coverageEnv.expandBy(coverageEnv.getWidth()/2,coverageEnv.getHeight()/2);
 		GeneralEnvelope bounds = new GeneralEnvelope(coverageEnv);
 		GeometryCollection roi = geometryFactory
 				.createGeometryCollection(new Geometry[] { JTS.toGeometry(coverageEnv) });
@@ -163,8 +160,11 @@ public class LandscapeExportWPS implements GeoServerProcess {
 		param.parameter("Source").setValue(coverage);
 		param.parameter("Envelope").setValue(bounds);
 		param.parameter("ROI").setValue(roi);
-
+		param.parameter("NoData").setValue(RangeFactory.create(-9999, -9999));
+		param.parameter("destNoData").setValue(new double[] {-9999});
 		GridCoverage2D result =  (GridCoverage2D) PROCESSOR.doOperation(param);
+		
+		coverage.dispose(true);
 		
 		/*
 		 * Should we rescale?:
@@ -174,12 +174,17 @@ public class LandscapeExportWPS implements GeoServerProcess {
 			result = handleRescaling(result,
 					Interpolation.getInstance(Interpolation.INTERP_NEAREST), scaleFactor);
 		}
-		//resample:
 		
 		//reproject to custom CRS
 		result = handleReprojection(result, crs,
 				Interpolation.getInstance(Interpolation.INTERP_NEAREST), null);
 
+		//final crop
+		param = PROCESSOR.getOperation("CoverageCrop").getParameters();
+		param.parameter("Source").setValue(result);
+		param.parameter("Envelope").setValue(envelope);
+
+		result =  (GridCoverage2D) PROCESSOR.doOperation(param);
 		
 		return result;
 	}
@@ -251,10 +256,11 @@ public class LandscapeExportWPS implements GeoServerProcess {
 				: CoverageProcessor.getInstance(hints);
 		final Operation operation = processor.getOperation("Resample");
 		final ParameterValueGroup parameters = operation.getParameters();
+		
 		parameters.parameter("Source").setValue(coverage);
 		parameters.parameter("CoordinateReferenceSystem").setValue(targetCRS);
-		parameters.parameter("GridGeometry").setValue(null);
 		parameters.parameter("InterpolationType").setValue(spatialInterpolation);
+
 		return (GridCoverage2D) processor.doOperation(parameters);
 	}
 	
@@ -264,16 +270,18 @@ public class LandscapeExportWPS implements GeoServerProcess {
 	 * This is similar to the handleReprojection method, 
 	 * except resampled to a coarser GridGeometry.
 	 * The "Scale" Operation method wouldn't preserve NoData areas, 
-	 * hence using "Resample" again. 
+	 * hence utilizing "Resample" again. 
 	 */
 	private GridCoverage2D handleRescaling(GridCoverage2D coverage,
 			Interpolation spatialInterpolation, double scaleFactor) {
 		// checks
 		Utilities.ensureNonNull("interpolation", spatialInterpolation);
+		
 		//resample
 		final CoverageProcessor processor = CoverageProcessor.getInstance();
 		final Operation operation = processor.getOperation("Resample");
 		final ParameterValueGroup parameters = operation.getParameters();
+		
 		parameters.parameter("Source").setValue(coverage);
 		parameters.parameter("InterpolationType").setValue(spatialInterpolation);
 		
