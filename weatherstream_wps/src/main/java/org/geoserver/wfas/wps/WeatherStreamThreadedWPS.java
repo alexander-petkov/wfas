@@ -27,66 +27,46 @@ import javax.measure.quantity.Temperature;
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.CoverageInfo;
 import org.geoserver.catalog.FeatureTypeInfo;
-import org.geoserver.wps.gs.GeoServerProcess;
 import org.geoserver.wps.process.ByteArrayRawData;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.io.GridCoverage2DReader;
 import org.geotools.coverage.grid.io.StructuredGridCoverage2DReader;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.FeatureCollection;
-import org.geotools.filter.text.cql2.CQL;
-import org.geotools.filter.text.cql2.CQLException;
 import org.geotools.gce.imagemosaic.ImageMosaicFormat;
 import org.geotools.geometry.DirectPosition2D;
-import org.geotools.geometry.jts.JTS;
-import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.geotools.process.factory.DescribeParameter;
 import org.geotools.process.factory.DescribeProcess;
 import org.geotools.process.factory.DescribeResult;
-import org.geotools.referencing.CRS;
 import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.opengis.coverage.grid.GridCoverage;
 import org.opengis.coverage.grid.GridCoverageReader;
-import org.opengis.feature.Feature;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
 import org.opengis.geometry.MismatchedDimensionException;
 import org.opengis.parameter.GeneralParameterValue;
 import org.opengis.parameter.ParameterValue;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.MathTransform;
 
 import systems.uom.common.USCustomary;
 import tec.uom.se.quantity.Quantities;
 import tec.uom.se.unit.Units;
 
 @DescribeProcess(title = "WeatherStreamWPSThreaded", description = "A Web Processing Service which generates Weather Stream  output for use in Flammap/Farsite")
-public class WeatherStreamThreadedWPS implements GeoServerProcess {
-	private Catalog catalog;
-	//private StructuredGridCoverage2DReader reader = null;
-	private Point input;
-	private Point transPoint;
-	private DateFormat dFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-	private Date lastDate;
-	private Calendar cal = Calendar.getInstance();
-	private static String LANDFIRE_NAMESPACE = "landfire";
-	private static String LANDFIRE_DEM = "us_dem_2016";	
-	private static String OSM_NAMESPACE = "osm";
+public class WeatherStreamThreadedWPS extends WFASProcess {
 	
+	private DateFormat dFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
+	protected Date lastDate;
+	private Calendar cal = Calendar.getInstance();
 	
 	private List<String> namespaces = Arrays.asList("rtma", "ndfd", "gfs");
 	//private List<String> coveragesList = Arrays.asList("Temperature");//, "Relative_humidity", "Total_precipitation",
 			//"Wind_speed", "Wind_direction", "Cloud_cover");
-
-	/* 
-	 * GeometryFactory will be used
-	 * to create a Point geometry   
-	 * from user input coordinates
-	 */
-	GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+	
+	public WeatherStreamThreadedWPS(Catalog catalog) {
+		super(catalog);
+		// TODO Auto-generated constructor stub
+	}
 	
 	private String getTimeZoneId(Point p) {
 		FeatureTypeInfo timezones = this.catalog.getFeatureTypeByName("osm", "timezones" );
@@ -101,10 +81,6 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 		}
 		String tzid = tzcoll.features().next().getProperty("tzid").getValue().toString();
 		return tzid;
-	}
-
-	public WeatherStreamThreadedWPS(Catalog catalog) {
-		this.catalog = catalog;
 	}
 
 	/**
@@ -290,50 +266,9 @@ public class WeatherStreamThreadedWPS implements GeoServerProcess {
 		csvWriter.close();
 
 		return new ByteArrayRawData(out.toByteArray(), "text/csv", "csv");
-	}
-
-	/**
-	 * @param ci CoverageInfo
-	 * @return reader StructuredGridCoverage2DReader
-	 */
-	private StructuredGridCoverage2DReader getCoverageReader(CoverageInfo ci) {
-		GridCoverageReader genericReader = null;
-		try {
-			genericReader = ci.getGridCoverageReader(null, null);
-		} catch (IOException e1) {
-			// TODO Auto-generated catch block
-			e1.printStackTrace();
-		} 
-		// we have a descriptor, now we need to find the association between the exposed 
-		//dimension names and the granule source attributes
-		StructuredGridCoverage2DReader reader = null; 
-		try { 
-			reader = (StructuredGridCoverage2DReader) genericReader; 
-		} catch (ClassCastException e) { 
-			// TODO Auto-generated catch block break; }
-		}
-		return reader;
-	}
-	/**
-	 * @param input Point to be translated
-	 * @param targetCRS
-	 * @return transPoint translated point 
-	 */
-	private Point transformPoint(Point inputPoint, CoordinateReferenceSystem targetCRS) {
-		MathTransform transform;
-		Point transPoint = null;
-		try { 
-			transform =
-						CRS.findMathTransform(CRS.decode("EPSG:" + inputPoint.getSRID()), targetCRS);
-				transPoint = (Point) JTS.transform(inputPoint, transform);
-				transPoint.setSRID(Integer.parseInt(CRS.toSRS(targetCRS,true)));
-		} catch (Exception e) { 
-			//TODO Auto-generated catch block e.printStackTrace(csvWriter); }
-		}
-		return transPoint;
-	}//end transformPoint
-	
+	}//end execute	
 }//end class
+
 /**
  * @author Alexander Petkov
  * A Class structure to hold 

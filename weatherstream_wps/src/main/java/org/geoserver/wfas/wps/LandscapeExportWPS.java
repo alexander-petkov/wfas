@@ -1,17 +1,19 @@
 package org.geoserver.wfas.wps;
 
-import java.io.IOException;
+import java.net.URL;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import javax.media.jai.Interpolation;
 
-import org.geoserver.wps.gs.GeoServerProcess;
+import org.geoserver.catalog.Catalog;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridEnvelope2D;
 import org.geotools.coverage.grid.GridGeometry2D;
 import org.geotools.coverage.grid.io.imageio.GeoToolsWriteParams;
 import org.geotools.coverage.processing.CoverageProcessor;
+import org.geotools.data.shapefile.ShapefileDataStore;
+import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.gce.geotiff.GeoTiffWriteParams;
 import org.geotools.geometry.GeneralEnvelope;
 import org.geotools.geometry.jts.JTS;
@@ -27,20 +29,18 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
 import org.opengis.coverage.grid.GridGeometry;
 import org.opengis.coverage.processing.Operation;
+import org.opengis.feature.simple.SimpleFeature;
 import org.opengis.geometry.Envelope;
-import org.opengis.geometry.MismatchedDimensionException;
 import org.opengis.parameter.ParameterValueGroup;
 import org.opengis.referencing.FactoryException;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.MathTransform;
 import org.opengis.referencing.operation.TransformException;
 
 import it.geosolutions.jaiext.range.RangeFactory;
 @DescribeProcess(title = "Landscape export", description = "A Web Processing Service which exports an 8-band Lanscape Geotiff suitable for use in Flammap/Farsite")
-public class LandscapeExportWPS implements GeoServerProcess {
+public class LandscapeExportWPS extends WFASProcess {
 	private final static GeoTiffWriteParams DEFAULT_WRITE_PARAMS;
 
     static {
@@ -54,24 +54,50 @@ public class LandscapeExportWPS implements GeoServerProcess {
     }
 	private static final CoverageProcessor PROCESSOR = CoverageProcessor.getInstance();
 	private static final Logger LOGGER = Logger.getLogger(LandscapeExportWPS.class.toString());
+	private GridCoverage2D coverage;
+	private GridCoverage2D result;
 	private String wkt;
-	private MathTransform transform;
-	private Point input;
-	private Point transPoint;
+	private String coverageName= null;
 	private CoordinateReferenceSystem crs;
-	private GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory();
+	
+	/**
+	 * This enum will
+	 * serve as a drop down 
+	 * list for Landfire dataset
+	 * version selection
+	 */
+	enum LandfireVersion {
+		LF105(105),
+		LF110(110),
+		LF120(120),
+		LF130(130),
+		LF140(140);
+		int value;
+
+		private LandfireVersion(int i) {
+		this.value = i;
+	}}
+	
+	/**
+	 * 
+	 */
+	public LandscapeExportWPS(Catalog catalog) {
+		super( catalog );
+	}
 
 	/**
 	 * @return Gridcoverage2d A subset of a Landscape file.
+	 * @throws Exception 
 	 */
 	@DescribeResult(name = "output", description = "8-band Landscape Geotiff", type = GridCoverage2D.class)
 	public GridCoverage2D execute(
 			@DescribeParameter(name = "Longitude", description = "Center Longitude for Landscape file") Double lon,
 			@DescribeParameter(name = "Latitude", description = "Center latitude for Landscape file") Double lat,
-			@DescribeParameter(name = "coverage", description = "Input raster") GridCoverage2D coverage,
+			//@DescribeParameter(name = "coverage", description = "Input raster") GridCoverage2D coverage,
+			@DescribeParameter(name = "version", description = "Landfire version (default is LF140)",min=0,defaultValue="LF140") LandfireVersion ver,
 			@DescribeParameter(name = "Scale Factor", description = "Output resolution: minimum value 0.1 (10 times coarser resolution), maximum=1 (original resolution)", defaultValue="1", min=0, minValue=0.1, maxValue=1.0) double scaleFactor,
 			@DescribeParameter(name = "Extent", description = "Extent of the output files (in miles): minimum 5, maximum 60.", defaultValue="5", min=1, minValue=5, maxValue=60) Integer extent) 
-			throws IOException, MismatchedDimensionException {
+			throws Exception {
 		/*
 		 * Check inputs for
 		 * out of range values:
@@ -100,21 +126,48 @@ public class LandscapeExportWPS implements GeoServerProcess {
 			}
 		}//end if
 				
-		/*
+		/**
 		 * construct a point geometry for which we should query weather data:
 		 */
 		input = geometryFactory.createPoint(new Coordinate(lon, lat));
 		input.setSRID(4326);
-
+		
+		/**
+		 * check that input point is within one of the three 
+		 * Landfire coverage extents:
+		 */
+		URL fileURL = this.getClass().getResource("/shapefiles/landfire_extents.shp");
+		ShapefileDataStore shapefile = new ShapefileDataStore(fileURL);
+		SimpleFeatureIterator features = shapefile.getFeatureSource().getFeatures().features();
+		
+		transPoint = transformPoint(input,shapefile.getFeatureSource().getInfo().getCRS());
+		SimpleFeature shp;
+        while (features.hasNext()) {
+            shp = features.next();
+            if (transPoint.within((Geometry) shp.getDefaultGeometry())){
+            	coverageName = (String) shp.getAttribute("coverage");
+            }
+        }
+        features.close();
+        shapefile.dispose();
+        if (coverageName==null) {
+        	throw new Exception ("Cannot find Landfire coverage for these input coordinates.");
+        } else {
+        	coverageName = coverageName  + "_" + ver.value;
+        }
+        
+        coverage = (GridCoverage2D) catalog.getCoverageByName("landfire", coverageName)
+        					.getGridCoverage(null, null);
+        
 		wkt = buildCustomAlbersWkt(lon, lat, extent);
 
 		try {
 			crs = CRS.parseWKT(wkt);
-			transform = CRS.findMathTransform(CRS.decode("EPSG:" + input.getSRID()), crs);
-			transPoint = (Point) JTS.transform(input, transform);
-		} catch (Exception e) {
+			transPoint = transformPoint(input, crs);
+		} catch ( FactoryException fe) {
 			if (LOGGER.isLoggable(Level.FINE)) {
-				LOGGER.fine("Unable to parse Albers projection from input coords: " + e.toString());
+				LOGGER.fine("Unable to parse Albers projection from input coords: " 
+						+ fe.toString());
 			} // end if
 		} // end catch
 		
@@ -151,18 +204,9 @@ public class LandscapeExportWPS implements GeoServerProcess {
 		 * large nodata areas.
 		 */
 		coverageEnv.expandBy(coverageEnv.getWidth()/2,coverageEnv.getHeight()/2);
-		GeneralEnvelope bounds = new GeneralEnvelope(coverageEnv);
-		GeometryCollection roi = geometryFactory
-				.createGeometryCollection(new Geometry[] { JTS.toGeometry(coverageEnv) });
 
-		// perform the crops
-		ParameterValueGroup param = PROCESSOR.getOperation("CoverageCrop").getParameters();
-		param.parameter("Source").setValue(coverage);
-		param.parameter("Envelope").setValue(bounds);
-		param.parameter("ROI").setValue(roi);
-		param.parameter("NoData").setValue(RangeFactory.create(-9999, -9999));
-		param.parameter("destNoData").setValue(new double[] {-9999});
-		GridCoverage2D result =  (GridCoverage2D) PROCESSOR.doOperation(param);
+		result = cropCoverage(coverage,coverageEnv);
+		//,true,true,-9999, new double[] {-9999});
 		
 		coverage.dispose(true);
 		
@@ -180,38 +224,13 @@ public class LandscapeExportWPS implements GeoServerProcess {
 				Interpolation.getInstance(Interpolation.INTERP_NEAREST), null);
 
 		//final crop
-		param = PROCESSOR.getOperation("CoverageCrop").getParameters();
-		param.parameter("Source").setValue(result);
-		param.parameter("Envelope").setValue(envelope);
+//		param = PROCESSOR.getOperation("CoverageCrop").getParameters();
+//		param.parameter("Source").setValue(result);
+//		param.parameter("Envelope").setValue(envelope);
 
-		result =  (GridCoverage2D) PROCESSOR.doOperation(param);
+		result =  cropCoverage(result,envelope);//(GridCoverage2D) PROCESSOR.doOperation(param);
 		
 		return result;
-	}
-
-	/**
-	 * Calculate the length for 1 degree longitude at input latitude
-	 * @param lon
-	 * @param lat
-	 * @return miles the length for 1 degree longitude
-	 */
-	private double calcOneDegreeLonLength (Double lon, Double lat) {
-		/** 
-		 * convert Input Latitude from dec degrees to radians:
-		 */
-		double rad = Math.toRadians(lat);
-		/**
-		 * Calculate cosine:
-		 */
-		double cos = Math.cos(rad);
-		/**
-		 * Calculate length of 1 degree longitude at input lat
-		 * in miles( 69.172 is the length in miles for 
-		 * 1 deg longitude at the equator):
-		 */
-		double miles = cos * 69.172;
-
-		return miles;
 	}
 	
 	/**
@@ -242,6 +261,37 @@ public class LandscapeExportWPS implements GeoServerProcess {
 		return wkt;
 	}
 
+	private GridCoverage2D cropCoverage(GridCoverage2D coverage, ReferencedEnvelope envelope) {
+			//boolean withBounds, boolean withROI, int nodata, double [] dstnodata) {
+		
+		ParameterValueGroup param = PROCESSOR.getOperation("CoverageCrop").getParameters();
+		param.parameter("Source").setValue(coverage);
+		param.parameter("Envelope").setValue(envelope);
+		param.parameter("NoData").setValue(RangeFactory.create(-9999, -9999));
+		param.parameter("destNoData").setValue(new double[] {-9999});
+		return (GridCoverage2D) PROCESSOR.doOperation(param);
+//		if (withBounds) {
+//			GeneralEnvelope bounds = new GeneralEnvelope(coverageEnv);
+//			param.parameter("Envelope").setValue(bounds);
+//		}
+//		
+//		if (withROI) {
+//			GeometryCollection roi = geometryFactory
+//				.createGeometryCollection(new Geometry[] { JTS.toGeometry(coverageEnv) });
+//			param.parameter("ROI").setValue(roi);
+//		}
+		// perform the crops
+		
+//		if (Inodata null) {
+//			
+//		}
+
+
+		
+		
+		//return result;
+		
+	}
 	private GridCoverage2D handleReprojection(GridCoverage2D coverage, CoordinateReferenceSystem targetCRS,
 			Interpolation spatialInterpolation, Hints hints) {
 		// checks
