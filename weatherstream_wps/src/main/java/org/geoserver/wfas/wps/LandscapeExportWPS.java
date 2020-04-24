@@ -15,9 +15,6 @@ import org.geotools.coverage.processing.CoverageProcessor;
 import org.geotools.data.shapefile.ShapefileDataStore;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.gce.geotiff.GeoTiffWriteParams;
-import org.geotools.geometry.GeneralEnvelope;
-import org.geotools.geometry.jts.JTS;
-import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.geotools.geometry.jts.ReferencedEnvelope;
 import org.geotools.process.factory.DescribeParameter;
 import org.geotools.process.factory.DescribeProcess;
@@ -27,8 +24,6 @@ import org.geotools.util.Utilities;
 import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryCollection;
-import org.locationtech.jts.geom.GeometryFactory;
 import org.opengis.coverage.grid.GridGeometry;
 import org.opengis.coverage.processing.Operation;
 import org.opengis.feature.simple.SimpleFeature;
@@ -139,17 +134,22 @@ public class LandscapeExportWPS extends WFASProcess {
 		URL fileURL = this.getClass().getResource("/shapefiles/landfire_extents.shp");
 		ShapefileDataStore shapefile = new ShapefileDataStore(fileURL);
 		SimpleFeatureIterator features = shapefile.getFeatureSource().getFeatures().features();
-		
+
 		transPoint = transformPoint(input,shapefile.getFeatureSource().getInfo().getCRS());
 		SimpleFeature shp;
-        while (features.hasNext()) {
-            shp = features.next();
-            if (transPoint.within((Geometry) shp.getDefaultGeometry())){
-            	coverageName = (String) shp.getAttribute("coverage");
-            }
+        try {
+        	while (features.hasNext()) {
+        		shp = (SimpleFeature) features.next();
+        		if (transPoint.within((Geometry) shp.getDefaultGeometry())){
+        			coverageName = (String) shp.getAttribute("coverage");
+        			break;
+        		}
+        	}
+        }finally {
+        	features.close();
+        	shapefile.dispose();
         }
-        features.close();
-        shapefile.dispose();
+        
         if (coverageName==null) {
         	throw new Exception ("Cannot find Landfire coverage for these input coordinates.");
         } else {
