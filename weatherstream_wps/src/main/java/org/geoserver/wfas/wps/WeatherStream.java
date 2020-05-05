@@ -52,8 +52,8 @@ import systems.uom.common.USCustomary;
 import tec.uom.se.quantity.Quantities;
 import tec.uom.se.unit.Units;
 
-@DescribeProcess(title = "WeatherStreamWPSThreaded", description = "A Web Processing Service which generates Weather Stream  output for use in Flammap/Farsite")
-public class WeatherStreamThreadedWPS extends WFASProcess {
+@DescribeProcess(title = "WeatherStream", description = "A Web Processing Service which generates Weather Stream  output for use in Flammap/Farsite")
+public class WeatherStream extends WFASProcess {
 	
 	private DateFormat dFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 	protected Date lastDate;
@@ -63,7 +63,7 @@ public class WeatherStreamThreadedWPS extends WFASProcess {
 	//private List<String> coveragesList = Arrays.asList("Temperature");//, "Relative_humidity", "Total_precipitation",
 			//"Wind_speed", "Wind_direction", "Cloud_cover");
 	
-	public WeatherStreamThreadedWPS(Catalog catalog) {
+	public WeatherStream(Catalog catalog) {
 		super(catalog);
 		// TODO Auto-generated constructor stub
 	}
@@ -206,7 +206,7 @@ public class WeatherStreamThreadedWPS extends WFASProcess {
 						continue;
 					}
 				
-				WeatherRecordThreaded wr = new WeatherRecordThreaded(); 
+				WeatherRecord wr = new WeatherRecord(); 
 				wr.date = timeD;
 				cal.setTime(timeD);
 				time.setValue(new ArrayList() { { add(timeD); } }); 
@@ -274,7 +274,7 @@ public class WeatherStreamThreadedWPS extends WFASProcess {
  * A Class structure to hold 
  * Flammamp Wxs weather data
  */
-class WeatherRecordThreaded{
+class WeatherRecord{
 	  Date  date = null;
 	  float tmp;
 	  float rh;
@@ -290,7 +290,7 @@ class WeatherRecordThreaded{
  * coverage results to scientific units 
  */
 class UnitFormatter{
-	static void format(CoverageInfo ci, Number val, Boolean useEnglishUnits, WeatherRecordThreaded wr) {
+	static void format(CoverageInfo ci, Number val, Boolean useEnglishUnits, WeatherRecord wr) {
 		switch (ci.getName()) {
 		case "Temperature":
 			Quantity<Temperature> tmpQt;

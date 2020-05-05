@@ -35,7 +35,7 @@ import org.opengis.referencing.operation.TransformException;
 
 import it.geosolutions.jaiext.range.RangeFactory;
 @DescribeProcess(title = "Landscape export", description = "A Web Processing Service which exports an 8-band Lanscape Geotiff suitable for use in Flammap/Farsite")
-public class LandscapeExportWPS extends WFASProcess {
+public class LandscapeExport extends WFASProcess {
 	private final static GeoTiffWriteParams DEFAULT_WRITE_PARAMS;
 
     static {
@@ -48,7 +48,7 @@ public class LandscapeExportWPS extends WFASProcess {
         DEFAULT_WRITE_PARAMS.setTiling(512, 512);
     }
 	private static final CoverageProcessor PROCESSOR = CoverageProcessor.getInstance();
-	private static final Logger LOGGER = Logger.getLogger(LandscapeExportWPS.class.toString());
+	private static final Logger LOGGER = Logger.getLogger(LandscapeExport.class.toString());
 	private GridCoverage2D coverage;
 	private GridCoverage2D result;
 	private String wkt;
@@ -76,7 +76,7 @@ public class LandscapeExportWPS extends WFASProcess {
 	/**
 	 * 
 	 */
-	public LandscapeExportWPS(Catalog catalog) {
+	public LandscapeExport(Catalog catalog) {
 		super( catalog );
 	}
 

@@ -107,3 +107,4 @@ public class WFASProcess implements GeoServerProcess {
 		return miles;
 	}
 }
+

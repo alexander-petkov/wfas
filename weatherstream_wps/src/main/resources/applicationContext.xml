@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
   <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
 <beans>
-	<bean id="WeatherStreamWPS" class="org.geoserver.wfas.wps.WeatherStreamWPS" ></bean>
-	<bean id="WeatherStreamThreadedWPS" class="org.geoserver.wfas.wps.WeatherStreamThreadedWPS" ></bean>
-	<bean id="LandscapeExportWPS" class="org.geoserver.wfas.wps.LandscapeExportWPS" ></bean>
+	<bean id="WeatherStream" class="org.geoserver.wfas.wps.WeatherStream" ></bean>
+	<bean id="LandscapeExport" class="org.geoserver.wfas.wps.LandscapeExport" ></bean>
 </beans>
