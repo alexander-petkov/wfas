@@ -18,6 +18,7 @@ import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 import javax.measure.Quantity;
 import javax.measure.quantity.Length;
@@ -58,7 +59,7 @@ public class WeatherStream extends WFASProcess {
 	private DateFormat dFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 	protected Date lastDate;
 	private Calendar cal = Calendar.getInstance();
-	
+	private static final Logger LOGGER = Logger.getLogger(WeatherStream.class.toString());
 	private List<String> namespaces = Arrays.asList("rtma", "ndfd", "gfs");
 	//private List<String> coveragesList = Arrays.asList("Temperature");//, "Relative_humidity", "Total_precipitation",
 			//"Wind_speed", "Wind_direction", "Cloud_cover");
@@ -82,7 +83,34 @@ public class WeatherStream extends WFASProcess {
 		String tzid = tzcoll.features().next().getProperty("tzid").getValue().toString();
 		return tzid;
 	}
+	
+	/**
+	 * Parses input string to UTC date.
+	 * @param d Input date as a string
+	 * @param tzid Time zone ID for the input lat/lon coordinates.
+	 * @return UTC Date, or null if @param d is null or couldn't be parsed
+	 */
+	private Date parseDatetoUTC(String d, String tzid) {
+		Date parsedDate = null;
+		DateFormat df;
+		List <String> dateFormats = Arrays.asList("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd");
+		for (String dateFormat : dateFormats)
+		{
+			try {
+				df = new SimpleDateFormat(dateFormat);
+				df.setTimeZone(TimeZone.getTimeZone(tzid));
+				parsedDate = df.parse(d);
+				break;
+			} catch (ParseException e) {
+				LOGGER.fine(d  + " could not be parsed to date, returning null...");
+			}catch (NullPointerException e) {
+				LOGGER.fine("Date is probably not specified, returning null...");
+			}
 
+		}
+		return parsedDate;
+	}
+	
 	/**
 	 * @param lon
 	 * @param lat
@@ -101,13 +129,17 @@ public class WeatherStream extends WFASProcess {
 			@DescribeParameter(name = "Archive", 
 								description = "Name of the archive from which the WeatherStream file will be "
 										+ "generated: rtma, ndfd, or gfs. Default is all three.", 
-								defaultValue = "all") String archive)
+								min = 0, defaultValue = "all") String archive,
+			@DescribeParameter(name = "Start date", description = "Starting date for which weather data should be etracted. Default is archive's first date.", 
+						min = 0) String startDateStr,
+			@DescribeParameter(name = "End date", description = "End date for which weather data should be etracted. Default is archive's last date.", 
+			min = 0) String endDateStr)
 					throws IOException, MismatchedDimensionException, ParseException {
 		/*
 		 * Initialize to null at the beginning of each run:
 		 */
 		lastDate=null;
-		
+
 		/*
 		 * Determine which archive to query:
 		 */
@@ -169,6 +201,9 @@ public class WeatherStream extends WFASProcess {
 		 */
 		String tzid = getTimeZoneId(input);
 		cal.setTimeZone(TimeZone.getTimeZone(tzid));
+		Date startDate = parseDatetoUTC(startDateStr,tzid);
+		Date endDate = parseDatetoUTC(endDateStr,tzid);
+		
 		/*
 		 * Write elevation results, 
 		 * and the units used (metric or English):
@@ -199,13 +234,19 @@ public class WeatherStream extends WFASProcess {
 				Date timeD = dFormat.parse(tStep.substring(0,tStep.length()-1));
 				
 				/**
-				 * check whether we should continue on from 
-				 * another dataset:
+				 * check for overlap with a previous dataset:
 				 */
 				if (lastDate!=null && !timeD.after(lastDate) ) {
-						continue;
-					}
+					continue;
+				}
 				
+				if (startDate!=null && timeD.before(startDate) ){
+					continue;
+				}
+				
+				if (endDate!=null && timeD.after(endDate) ){
+					break;
+				}
 				WeatherRecord wr = new WeatherRecord(); 
 				wr.date = timeD;
 				cal.setTime(timeD);
@@ -236,7 +277,7 @@ public class WeatherStream extends WFASProcess {
 							gc.dispose(false); 	
 						}//end run
 					});//end execute
-			} //end for Coverage
+				} //end for Coverage
 				WORKER_THREAD_POOL.shutdown();
 				try {
 					WORKER_THREAD_POOL.awaitTermination(1, TimeUnit.MINUTES);
