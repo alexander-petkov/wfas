@@ -125,15 +125,16 @@ public class WeatherStream extends WFASProcess {
 	public ByteArrayRawData execute(
 			@DescribeParameter(name = "Longitude", description = "Longitude for which to extract weather info") Double lon,
 			@DescribeParameter(name = "Latitude", description = "Latitude for which to extract weather info") Double lat,
-			@DescribeParameter(name = "English units", description = "English units if true, metric units if false", defaultValue = "true") Boolean useEnglishUnits,
+			@DescribeParameter(name = "English units", description = "English units if true, metric units if false", 
+								min = 0, defaultValue = "true") Boolean useEnglishUnits,
 			@DescribeParameter(name = "Archive", 
 								description = "Name of the archive from which the WeatherStream file will be "
 										+ "generated: rtma, ndfd, or gfs. Default is all three.", 
 								min = 0, defaultValue = "all") String archive,
 			@DescribeParameter(name = "Start date", description = "Starting date for which weather data should be etracted. Default is archive's first date.", 
-						min = 0) String startDateStr,
+								min = 0) String startDateStr,
 			@DescribeParameter(name = "End date", description = "End date for which weather data should be etracted. Default is archive's last date.", 
-			min = 0) String endDateStr)
+								min = 0) String endDateStr)
 					throws IOException, MismatchedDimensionException, ParseException {
 		/*
 		 * Initialize to null at the beginning of each run:
