@@ -131,9 +131,9 @@ public class WeatherStream extends WFASProcess {
 								description = "Name of the archive from which the WeatherStream file will be "
 										+ "generated: rtma, ndfd, or gfs. Default is all three.", 
 								min = 0, defaultValue = "all") String archive,
-			@DescribeParameter(name = "Start date", description = "Starting date for which weather data should be etracted. Default is archive's first date.", 
+			@DescribeParameter(name = "Start date", description = "Starting date for which weather data should be extracted. Default is archive's first date.", 
 								min = 0) String startDateStr,
-			@DescribeParameter(name = "End date", description = "End date for which weather data should be etracted. Default is archive's last date.", 
+			@DescribeParameter(name = "End date", description = "End date for which weather data should be extracted. Default is archive's last date.", 
 								min = 0) String endDateStr)
 					throws IOException, MismatchedDimensionException, ParseException {
 		/*
