@@ -183,7 +183,8 @@ public class WeatherStream extends WFASProcess {
 		transPoint = transformPoint(input, dem.getCRS());
 		Number height = (Number) Array.get(dc.evaluate(new DirectPosition2D(transPoint.getX(),
 				transPoint.getY())),0);
-		
+		dgc.dispose();
+		dc = null;
 		/*
 		 * quit if out of bounds, or NaN 
 		 * elevation value for requested coordinates
@@ -194,7 +195,6 @@ public class WeatherStream extends WFASProcess {
 			csvWriter.append("Input coordinates are out of CONUS area, ending process...\n");
 			csvWriter.flush();
 			csvWriter.close();
-			dgc.dispose();
 			return new ByteArrayRawData(out.toByteArray(), "text/csv", "csv");
 		}
 		/*
@@ -252,7 +252,7 @@ public class WeatherStream extends WFASProcess {
 				wr.date = timeD;
 				cal.setTime(timeD);
 				time.setValue(new ArrayList() { { add(timeD); } }); 
-				GeneralParameterValue[] values = new GeneralParameterValue[] { time }; 
+				final GeneralParameterValue[] values = new GeneralParameterValue[] { time }; 
 				
 				ExecutorService WORKER_THREAD_POOL 
 				  = Executors.newFixedThreadPool(ciList.size());
@@ -275,13 +275,14 @@ public class WeatherStream extends WFASProcess {
 							Number val = (Number) Array.get(gc.evaluate(new DirectPosition2D(transPoint.getX(),
 									transPoint.getY())),0); 
 							UnitFormatter.format(ci, val, useEnglishUnits, wr);
-							gc.dispose(false); 	
+							gc.dispose(true);					
 						}//end run
 					});//end execute
 				} //end for Coverage
 				WORKER_THREAD_POOL.shutdown();
 				try {
 					WORKER_THREAD_POOL.awaitTermination(1, TimeUnit.MINUTES);
+					//System.gc();
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
@@ -302,11 +303,14 @@ public class WeatherStream extends WFASProcess {
 			String lastTimeStep = tList.get(tList.size()-1);
 			lastDate = dFormat.parse(lastTimeStep.substring(0, lastTimeStep.length()-1));
 			lastTimeStep=null;
+			tList=null;
+			ciList=null;
+			timestamps=null;
 		}//end for
-
+		
 		csvWriter.flush();
 		csvWriter.close();
-
+		System.gc();
 		return new ByteArrayRawData(out.toByteArray(), "text/csv", "csv");
 	}//end execute	
 }//end class
