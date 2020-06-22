@@ -1,0 +1,38 @@
+FROM tomcat:%%TOMCAT_VERSION%%-jre%%JRE_VERSION%%-slim
+
+ENV GEOSERVER_VERSION  2.11.2
+ENV GEOSERVER_WAR_URL  https://github.com/azavea/docker-geoserver/releases/download/0.0.0/geoserver-${GEOSERVER_VERSION}-war.zip
+ENV GEOSERVER_MONITORING_URL https://github.com/azavea/docker-geoserver/releases/download/0.0.0/geoserver-${GEOSERVER_VERSION}-monitor-plugin.zip
+ENV GEOSERVER_DIR  ${CATALINA_HOME}/webapps/geoserver
+ENV GEOSERVER_EXT_DIR  ${GEOSERVER_DIR}/WEB-INF/lib
+ENV GEOSERVER_DATA_DIR /data
+
+RUN apt-get update \
+  && apt-get install -y -qq \
+      openssl \
+      unzip \
+      wget \
+      curl \
+      ca-certificates \
+  && update-ca-certificates \
+  && rm -rf ${CATALINA_HOME}/webapps/* \
+  && mkdir -p ${GEOSERVER_DATA_DIR}
+
+VOLUME ${GEOSERVER_DATA_DIR}
+
+RUN  cd /tmp \
+  && wget -qO /tmp/geoserver.zip ${GEOSERVER_WAR_URL} \
+  && wget -qO /tmp/geoserver-monitoring.zip ${GEOSERVER_MONITORING_URL} \
+  && unzip -qq /tmp/geoserver.zip \
+  && unzip -qq -d ${GEOSERVER_DIR} /tmp/geoserver.war \
+  && unzip -qq -d ${GEOSERVER_EXT_DIR} /tmp/geoserver-monitoring.zip \
+  && rm -rf /tmp/* \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR ${CATALINA_HOME}
+
+COPY setenv.sh.tpl ${CATALINA_HOME}/bin/setenv.sh
+
+# Used a different sed delimiter because of https://github.com/moby/moby/issues/32140
+RUN sed -i -r "s|%%GEOSERVER_DATA_DIR%%|${GEOSERVER_DATA_DIR}|" \
+		${CATALINA_HOME}/bin/setenv.sh

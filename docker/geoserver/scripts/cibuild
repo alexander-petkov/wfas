@@ -1,0 +1,36 @@
+#!/bin/bash
+
+set -e
+set -u
+
+if [[ -n "${CI}" ]]; then
+    set -x
+fi
+
+function usage() {
+    echo -n \
+"Usage: $(basename "$0")
+Build container images from templates.
+"
+}
+
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    if [ "${1:-}" = "--help" ]; then
+        usage
+    else
+
+        sed -e "s/%%TOMCAT_VERSION%%/$TOMCAT_VERSION/" \
+            -e "s/%%JRE_VERSION%%/$JRE_VERSION/" \
+            -e "s/%%GEOSERVER_VERSION%%/$GEOSERVER_VERSION/" \
+            -e "s/%%GEOSERVER_MAJOR_VERSION%%/${GEOSERVER_VERSION:0:4}/" \
+            "Dockerfile-$VARIANT.template" > Dockerfile
+
+        docker \
+            build -t "quay.io/azavea/geoserver:$GEOSERVER_VERSION-tomcat$TOMCAT_VERSION-jre$JRE_VERSION-$VARIANT" .
+
+
+        scripts/test
+
+        docker images
+    fi
+fi
