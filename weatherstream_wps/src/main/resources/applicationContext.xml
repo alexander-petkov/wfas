@@ -3,4 +3,5 @@
 <beans>
 	<bean id="WeatherStream" class="org.geoserver.wfas.wps.WeatherStream" ></bean>
 	<bean id="LandscapeExport" class="org.geoserver.wfas.wps.LandscapeExport" ></bean>
+	<bean id="GeotifPPIO" class="org.geoserver.wps.ppio.GeoTifPPIO" ></bean>
 </beans>

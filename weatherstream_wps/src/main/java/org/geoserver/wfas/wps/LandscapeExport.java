@@ -74,7 +74,7 @@ public class LandscapeExport extends WFASProcess {
 	}}
 	
 	/**
-	 * 
+	 * Default constructor
 	 */
 	public LandscapeExport(Catalog catalog) {
 		super( catalog );
@@ -84,14 +84,15 @@ public class LandscapeExport extends WFASProcess {
 	 * @return Gridcoverage2d A subset of a Landscape file.
 	 * @throws Exception 
 	 */
-	@DescribeResult(name = "output", description = "8-band Landscape Geotiff", type = GridCoverage2D.class)
+	@DescribeResult(name = "output", description = "8-band Landscape Geotiff", type = GridCoverage2D.class, meta = { "mimeType=image/tif",
+	"chosenMimeType=image/tif" })
 	public GridCoverage2D execute(
 			@DescribeParameter(name = "Longitude", description = "Center Longitude for Landscape file") Double lon,
 			@DescribeParameter(name = "Latitude", description = "Center latitude for Landscape file") Double lat,
 			//@DescribeParameter(name = "coverage", description = "Input raster") GridCoverage2D coverage,
 			@DescribeParameter(name = "version", description = "Landfire version (default is LF140)",min=0,defaultValue="LF140") LandfireVersion ver,
-			@DescribeParameter(name = "Scale Factor", description = "Output resolution: minimum value 0.1 (10 times coarser resolution), maximum=1 (original resolution)", defaultValue="1", min=0, minValue=0.1, maxValue=1.0) double scaleFactor,
-			@DescribeParameter(name = "Extent", description = "Extent of the output files (in miles): minimum 5, maximum 60.", defaultValue="5", min=1, minValue=5, maxValue=60) Integer extent) 
+			@DescribeParameter(name = "Scale Factor", description = "Output resolution: minimum value 0.1 (10 times coarser resolution), maximum=1 (original resolution). Default value is 1.", defaultValue="1", min=0, minValue=0.1, maxValue=1.0) double scaleFactor,
+			@DescribeParameter(name = "Extent", description = "Extent of the output files (in miles): minimum 5 , maximum 60. Default value is 5.", defaultValue="5", min=0, minValue=5, maxValue=60) Integer extent)
 			throws Exception {
 		/*
 		 * Check inputs for
@@ -181,11 +182,6 @@ public class LandscapeExport extends WFASProcess {
 				crs);
 
 		/*
-		 * @TODO Check that input point is within CONUS extent and that we can get elev data
-		 * for it:
-		 */
-
-		/*
 		 * Transform our custom Albers-generated envelope to coverage CRS envelope:
 		 */
 		ReferencedEnvelope coverageEnv = new ReferencedEnvelope();
@@ -206,7 +202,6 @@ public class LandscapeExport extends WFASProcess {
 		coverageEnv.expandBy(coverageEnv.getWidth()/2,coverageEnv.getHeight()/2);
 
 		result = cropCoverage(coverage,coverageEnv);
-		//,true,true,-9999, new double[] {-9999});
 		
 		coverage.dispose(true);
 		
@@ -223,12 +218,7 @@ public class LandscapeExport extends WFASProcess {
 		result = handleReprojection(result, crs,
 				Interpolation.getInstance(Interpolation.INTERP_NEAREST), null);
 
-		//final crop
-//		param = PROCESSOR.getOperation("CoverageCrop").getParameters();
-//		param.parameter("Source").setValue(result);
-//		param.parameter("Envelope").setValue(envelope);
-
-		result =  cropCoverage(result,envelope);//(GridCoverage2D) PROCESSOR.doOperation(param);
+		result =  cropCoverage(result,envelope);
 		
 		return result;
 	}
@@ -262,36 +252,15 @@ public class LandscapeExport extends WFASProcess {
 	}
 
 	private GridCoverage2D cropCoverage(GridCoverage2D coverage, ReferencedEnvelope envelope) {
-			//boolean withBounds, boolean withROI, int nodata, double [] dstnodata) {
-		
+			
 		ParameterValueGroup param = PROCESSOR.getOperation("CoverageCrop").getParameters();
 		param.parameter("Source").setValue(coverage);
 		param.parameter("Envelope").setValue(envelope);
 		param.parameter("NoData").setValue(RangeFactory.create(-9999, -9999));
 		param.parameter("destNoData").setValue(new double[] {-9999});
 		return (GridCoverage2D) PROCESSOR.doOperation(param);
-//		if (withBounds) {
-//			GeneralEnvelope bounds = new GeneralEnvelope(coverageEnv);
-//			param.parameter("Envelope").setValue(bounds);
-//		}
-//		
-//		if (withROI) {
-//			GeometryCollection roi = geometryFactory
-//				.createGeometryCollection(new Geometry[] { JTS.toGeometry(coverageEnv) });
-//			param.parameter("ROI").setValue(roi);
-//		}
-		// perform the crops
-		
-//		if (Inodata null) {
-//			
-//		}
-
-
-		
-		
-		//return result;
-		
 	}
+	
 	private GridCoverage2D handleReprojection(GridCoverage2D coverage, CoordinateReferenceSystem targetCRS,
 			Interpolation spatialInterpolation, Hints hints) {
 		// checks
