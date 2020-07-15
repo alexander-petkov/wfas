@@ -1,15 +1,14 @@
 #!/bin/bash
-export PATH=/opt/anaconda3/bin:/opt/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-REST_URL="http://192.168.59.56:8081/geoserver/rest/workspaces"
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/mnt/cephfs/miniconda3/bin:/mnt/cephfs/miniconda3/condabin
+REST_URL="http://172.31.21.126:8081/geoserver/rest/workspaces"
 WORKSPACE="hrrr"
 HRRR_DIR='/mnt/cephfs/wfas/data/hrrr'
 FILENAME='hrrr.t00z.wrfsfcf'
 HRRR_GRID=${HRRR_DIR}/hrrr_grid
-DATASETS=('UGRD'  'VGRD'  'APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WIND' 'DSWRF') 
-DERIVED=(0 0 0 0 0 0 1 0 0) #is the dataset downloaded, or derived from other variables?
-FUNCTION=('' '' '' '' '' '' 'derive_wdir' '' '') 
-LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' 
-	'2_m_above_ground' '10_m_above_ground' '10_m_above_ground' 'surface') 
+DATASETS=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WIND' 'DSWRF') 
+DERIVED=(0 0 0 0 1 0 0) #is the dataset downloaded, or derived from other variables?
+FUNCTION=('' '' '' '' 'derive_wdir' '' '') 
+LEVELS=('surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' '10_m_above_ground' '10_m_above_ground' 'surface') 
 
 #DATASETS=('WDIR') 
 #DERIVED=(1) #is the dataset downloaded, or derived from other variables?
@@ -38,8 +37,16 @@ HRRR_PROJ='+proj=lcc +lat_1=38.5 +lat_2=38.5 +lat_0=38.5 +lon_0=-97.5 +x_0=0 +y_
 export WINDNINJA_DATA=/mnt/cephfs/wfas/bin
 
 function derive_wdir {
+   LEVEL='10_m_above_ground'
+
    for h in `seq -w 00 1 36`
-   do 
+   do
+      # Get UGRD and VGRD for this hour:  
+      wget -q "${NOMADS_URL}?file=${FILENAME}${h}.grib2&lev_${LEVEL}=on&var_UGRD=on&${SUBREGION}&dir=%2F${FORECAST}%2Fconus" \
+		-O ${HRRR_DIR}/UGRD/${FILENAME}${h}.grib2;
+      wget -q "${NOMADS_URL}?file=${FILENAME}${h}.grib2&lev_${LEVEL}=on&var_VGRD=on&${SUBREGION}&dir=%2F${FORECAST}%2Fconus" \
+		-O ${HRRR_DIR}/VGRD/${FILENAME}${h}.grib2;
+      #Derive WDIR:
       cdo -s -O -P 4 -invertlat -expr,'10wdir=((10u<0)) ? 360+10u:10u;' -mulc,57.3 -atan2 -mulc,-1 \
 	      ${HRRR_DIR}/UGRD/${FILENAME}${h}.grib2 -mulc,-1 \
 	      ${HRRR_DIR}/VGRD/${FILENAME}${h}.grib2 \
@@ -49,6 +56,10 @@ function derive_wdir {
       gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_ullr ${GEOTIFF_BOUNDS} -a_srs "${HRRR_PROJ}" \
 	      -b 1 ${HRRR_DIR}/WDIR/${FILENAME}${h}.grib2 \
 	      ${HRRR_DIR}/WDIR/${date}.tif
+      #clean up grib files:
+      rm ${HRRR_DIR}/UGRD/${FILENAME}${h}.grib2 \
+	      ${HRRR_DIR}/VGRD/${FILENAME}${h}.grib2 \
+	      ${HRRR_DIR}/WDIR/${FILENAME}${h}.grib2
    done
 }
 
@@ -78,17 +89,15 @@ do
    if [ ${DERIVED[$counter]} = 0 ]; then 
       for h in `seq -w 00 1 36`
       do 
-         wget -q "${NOMADS_URL}?file=${FILENAME}${h}.grib2&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2Fconus" \
+         wget -q "${NOMADS_URL}?file=${FILENAME}${h}.grib2&lev_${LEVELS[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2Fconus" \
 		-O ${FILE_DIR}/${FILENAME}${h}.grib2;
 	 
-	 #rewrite the grid from 0-360 to -180 180 lon range:
-         #/cdo -f nc setgrid,${HRRR_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
-	#/	${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
          t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/${FILENAME}${h}.grib2`
          date=`date -d ${t} +'%Y%m%d%H%M'` 
          gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${HRRR_PROJ}" \
 		-b 1 ${FILE_DIR}/${FILENAME}${h}.grib2 \
 		${FILE_DIR}/${date}.tif
+	 rm ${FILE_DIR}/${FILENAME}${h}.grib2
       done
    elif [ ${DERIVED[$counter]} = 1 ]; then #derive dataset:
       ${FUNCTION[counter]} ${d} #execute corresponding derive function
@@ -111,8 +120,6 @@ do
    #remove old granules from system:
    rm  ${FILE_DIR}/tif/*.tif*
    find ${FILE_DIR} -empty -type f -delete ;
-   #/rm ${FILE_DIR}/*.tmp ;
-   #/rm ${FILE_DIR}/*.nc ;
 #2. Move new granules in place:
    mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
 #3.Re-index mosaic:
