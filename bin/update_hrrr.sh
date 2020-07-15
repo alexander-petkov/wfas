@@ -1,8 +1,10 @@
 #!/bin/bash
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/mnt/cephfs/miniconda3/bin:/mnt/cephfs/miniconda3/condabin
-REST_URL="http://172.31.21.126:8081/geoserver/rest/workspaces"
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+source ${DIR}/globals.env
+
 WORKSPACE="hrrr"
-HRRR_DIR='/mnt/cephfs/wfas/data/hrrr'
+HRRR_DIR=${DATA_DIR}/hrrr
 FILENAME='hrrr.t00z.wrfsfcf'
 HRRR_GRID=${HRRR_DIR}/hrrr_grid
 DATASETS=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WIND' 'DSWRF') 
@@ -10,31 +12,18 @@ DERIVED=(0 0 0 0 1 0 0) #is the dataset downloaded, or derived from other variab
 FUNCTION=('' '' '' '' 'derive_wdir' '' '') 
 LEVELS=('surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' '10_m_above_ground' '10_m_above_ground' 'surface') 
 
-#DATASETS=('WDIR') 
-#DERIVED=(1) #is the dataset downloaded, or derived from other variables?
-#FUNCTION=('derive_wdir') 
-#LEVEL=('10_m_above_ground')
-
 counter=0 
 
 #NOMADS setup:
-#RES='0p25' #quarter-degree resolution
 NOMADS_URL="https://nomads.ncep.noaa.gov/cgi-bin/filter_hrrr_2d.pl"
-#HOUR='t00z' #forecast hour
 SUBREGION='subregion=&leftlon=-140&rightlon=-60&toplat=53&bottomlat=22'
 #get latest forecast run:
 FORECAST=`curl -s -l https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/|cut -d '"' -f 2|cut -d '/' -f 1|grep 'hrrr\.'|tail -n 1`
 #END NOMADS Setup
 
 #GDAL exports:
-export GRIB_NORMALIZE_UNITS=no #keep original units
-export GDAL_DATA=/mnt/cephfs/gdal_data
-GEOTIFF_OPTIONS='-co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co TILED=YES -co NUM_THREADS=ALL_CPUS'
 GEOTIFF_BOUNDS='-2699020.247 1588193.877 2697979.753 -1588806.123'
 HRRR_PROJ='+proj=lcc +lat_1=38.5 +lat_2=38.5 +lat_0=38.5 +lon_0=-97.5 +x_0=0 +y_0=0 +a=6371229 +b=6371229 +units=m +no_defs '
-
-#Windninja data:
-export WINDNINJA_DATA=/mnt/cephfs/wfas/bin
 
 function derive_wdir {
    LEVEL='10_m_above_ground'

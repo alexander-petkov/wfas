@@ -1,8 +1,11 @@
 #!/bin/bash
-export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/mnt/cephfs/miniconda3/bin:/mnt/cephfs/miniconda3/condabin
-REST_URL="http://172.31.21.126:8081/geoserver/rest/workspaces"
+
+#get the path for this script:
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+source ${DIR}/globals.env
+
 WORKSPACE="nbm"
-NBM_DIR='/mnt/cephfs/wfas/data/nbm'
+NBM_DIR=${DATA_DIR}/nbm
 DATASETS=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WIND' 'DSWRF') 
 #Below are parameter filters in KVP format, 
 #used by grib_copy to extract the appropriate band
@@ -16,9 +19,6 @@ REMOTE_URL='ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/blend/prod'
 FORECAST=`curl -s -l ${REMOTE_URL}/|cut -d '"' -f 2|cut -d '/' -f 1|tail -n 1`
 
 #GDAL exports:
-export GRIB_NORMALIZE_UNITS=no #keep original units
-export GDAL_DATA=/mnt/cephfs/gdal_data
-GEOTIFF_OPTIONS='-co COMPRESS=DEFLATE -co TILED=YES'
 PROJ4_SRS='+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +a=6371200 +b=6371200 +units=m +no_defs'
 
 function remove_files_from_mosaic {

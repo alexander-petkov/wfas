@@ -1,10 +1,11 @@
 #!/bin/bash
 
-export PATH=/opt/anaconda3/bin:/opt/anaconda3/condabin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+#get the path for this script:
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+source ${DIR}/globals.env
 
-REST_URL="http://192.168.59.56:8081/geoserver/rest/workspaces"
 WORKSPACE="rtma"
-RTMA_DIR='/mnt/cephfs/wfas/data/rtma'
+RTMA_DIR=${DATA_DIR}/rtma
 RTMA_FTP='ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod'
 REMOTE_FILES=() #initially empty array
 DATASETS=('varanl' 'pcp' 'rhm')
@@ -16,12 +17,6 @@ PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6
 RHM_SRS='+proj=lcc +lat_0=0 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6367470 +units=m +no_defs'
 counter=0
 
-#GDAL exports:
-export GRIB_NORMALIZE_UNITS=no #keep original units
-export GDAL_DATA=/mnt/cephfs/gdal_data
-
-#Windninja data:
-export WINDNINJA_DATA=/mnt/cephfs/wfas/bin
 ELEV_FILE=${RTMA_DIR}/rtma_dem.tif
 
 function derive_rhm {
@@ -45,13 +40,11 @@ function compute_solar_file {
       day=${1:56:2}
       month=${1:54:2}
       year=${1:50:4}
-      /mnt/cephfs/wfas/bin/solar_grid --cloud-file ${1} \
-	      --num-threads 4 --day ${day} --month ${month} \
+      solar_grid --cloud-file ${1} \
+	      --num-threads 6 --day ${day} --month ${month} \
 	      --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
 	      ${ELEV_FILE} ${2}.asc
-      gdal_translate -q -ot Int16 -of GTiff -co 'NUM_THREADS=ALL_CPUS' -co 'PROFILE=GeoTIFF' \
-	      -co 'TILED=YES' -co 'NUM_THREADS=ALL_CPUS' \
-	      ${2}.asc ${2}
+      gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} ${2}.asc ${2}
       rm ${2}.{asc,prj}
    fi
 }
