@@ -31,7 +31,7 @@ RUN apk update \
   && wget -qO /tmp/geoserver.zip ${GEOSERVER_WAR_URL} \
   && unzip -qq /tmp/geoserver.zip \
   && unzip -qqo -d ${GEOSERVER_DIR} /tmp/geoserver.war \
-  && for ext in wps gdal grib netcdf; \
+  && for ext in wps gdal grib netcdf netcdf-out wcs2_0-eo; \
      do \
         wget -q $GEOSERVER_EXT_URL/geoserver-${GEOSERVER_VERSION}-${ext}-plugin.zip ; \
         unzip -qo -d ${GEOSERVER_EXT_DIR} geoserver-${GEOSERVER_VERSION}-${ext}-plugin.zip ; \
@@ -41,7 +41,7 @@ RUN apk update \
          wget -q "${GEOSERVER_COMM_EXT_URL}/geoserver-${GEOSERVER_MAJOR_VERSION}-SNAPSHOT-${comm_ext}-plugin.zip" ; \
          unzip -qo -d ${GEOSERVER_EXT_DIR} geoserver-${GEOSERVER_MAJOR_VERSION}-SNAPSHOT-${comm_ext}-plugin.zip ; \
      done \ 
-  && cp /usr/share/java/gdal-3.1.1.jar $GEOSERVER_EXT_DIR/gdal-2.2.0.jar \
+  && cp /usr/share/java/gdal-3.1.2.jar $GEOSERVER_EXT_DIR/gdal-2.2.0.jar \
   && mv $GEOSERVER_EXT_DIR/postgresql-*.jar $CATALINA_HOME/lib/ \
   && rm -rf /tmp/* \
   && rm -rf /var/lib/apt/lists/*

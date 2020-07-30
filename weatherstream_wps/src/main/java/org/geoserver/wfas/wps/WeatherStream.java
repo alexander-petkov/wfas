@@ -311,7 +311,7 @@ public class WeatherStream extends WFASProcess {
 		csvWriter.flush();
 		csvWriter.close();
 		System.gc();
-		return new ByteArrayRawData(out.toByteArray(), "text/csv", "csv");
+		return new ByteArrayRawData(out.toByteArray(), "text/csv", "wxs");
 	}//end execute	
 }//end class
 

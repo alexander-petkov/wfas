@@ -1,4 +1,4 @@
-FROM openjdk:8-jre-alpine
+FROM wfas/wfas-repo:openjdk-8-jre-alpine
 
 ENV CATALINA_HOME /usr/local/tomcat
 ENV PATH $CATALINA_HOME/bin:$PATH
@@ -90,6 +90,9 @@ RUN set -x \
 	&& apk add --no-cache bash \
 	&& find ./bin/ -name '*.sh' -exec sed -ri 's|^#!/bin/sh$|#!/usr/bin/env bash|' '{}' +
 
+#COPY server.xml $CATALINA_HOME/conf/server.xml
+#COPY .keystore $CATALINA_HOME/conf/.keystore
+
 # verify Tomcat Native is working properly
 RUN set -e \
 	&& nativeLines="$(catalina.sh configtest 2>&1)" \
@@ -101,4 +104,5 @@ RUN set -e \
 	fi
 
 EXPOSE 8080
+#EXPOSE 8443
 CMD ["catalina.sh", "run"]

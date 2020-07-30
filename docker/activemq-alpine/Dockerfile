@@ -1,23 +1,27 @@
 FROM tomcat:8-jre8-alpine
 
-ENV GEOSERVER_VERSION 2.16-SNAPSHOT
+ENV GEOSERVER_VERSION 2.16.SNAPSHOT
 ENV GEOSERVER_DATA_DIR /opt/geoserver/data_dir 
 ENV GEOSERVER_INSTALL_DIR /usr/local/broker
 
 ENV BROKER_FILE geoserver-${GEOSERVER_VERSION}-activeMQ-broker-plugin.zip
-ENV BROKER_URL http://build.geoserver.org/geoserver/2.16.x/community-latest/${BROKER_FILE}
+#ENV BROKER_URL http://build.geoserver.org/geoserver/2.16.x/community-latest/${BROKER_FILE}
+ENV BROKER_URL http://wfas.net/tmp/activemqBroker-2.16.1.war
 
 #RUN apt-get update && apt-get install wget telnet  unzip -y
 # GeoServer
 #ADD conf/geoserver.xml /usr/local/tomcat/conf/Catalina/localhost/geoserver.xml
+#COPY activemqBroker-2.16.1.war /root/activemqBroker-2.16.1.war
 RUN mkdir -p /usr/local/tomcat/conf/Catalina/localhost && echo "<Context path=\"/broker\" docBase=\"/usr/local/broker\"></Context>" > /usr/local/tomcat/conf/Catalina/localhost/broker.xml \
         && mkdir -p ${GEOSERVER_DATA_DIR} \
 	&& mkdir ${GEOSERVER_INSTALL_DIR} \
 	&& cd ${GEOSERVER_INSTALL_DIR} \
 	&& wget ${BROKER_URL} \
-	&& unzip ${BROKER_FILE} \
-	&& unzip activemqBroker-${GEOSERVER_VERSION}.war \
-	&& rm *.war *.zip
+	#&& unzip ${BROKER_FILE} \
+	#&& unzip activemqBroker-${GEOSERVER_VERSION}.war \
+	&& unzip activemqBroker-2.16.1.war \
+	#&& unzip /root/activemqBroker-2.16.1.war \
+	&& rm *.war
 
 # Tomcat environment
 ENV CATALINA_OPTS "-server -Djava.awt.headless=true \
