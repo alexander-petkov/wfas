@@ -1,4 +1,5 @@
 import os
+import sys
 import osr
 import gdal
 import math
@@ -41,9 +42,10 @@ def create_tiles(minx, miny, maxx, maxy, n):
 
 def split(file_name, n):
     raw_file_name = os.path.splitext(os.path.basename(file_name))[0].replace("_downsample", "")
-    driver = gdal.GetDriverByName('GTiff')
+    raw_file_name = os.path.basename(file_name) 
+    driver = gdal.GetDriverByName('GRIB')
     dataset = gdal.Open(file_name)
-    band = dataset.GetRasterBand(1)
+    band = dataset.GetRasterBand(3)
     transform = dataset.GetGeoTransform()
 
     extent = get_extent(dataset)
@@ -62,7 +64,7 @@ def split(file_name, n):
     width = maxx - minx
     height = maxy - miny
 
-    output_path = os.path.join("data", raw_file_name)
+    output_path = os.path.join("data", os.path.split(os.path.split(file_name)[0])[1] + '/' + raw_file_name)
     if not os.path.exists(output_path):
         os.makedirs(output_path)
     print (round(width,0),round(height, 0))
@@ -114,13 +116,14 @@ def split(file_name, n):
         new_transform = (new_x, transform[1], transform[2], new_y, transform[4], transform[5])
 
         output_file_base = raw_file_name + "_" + str(tile_num) + ".tif"
-        output_file = os.path.join("data", raw_file_name, output_file_base)
-
+        output_file = os.path.join("data", os.path.split(os.path.split(file_name)[0])[1]+ '/'+ raw_file_name, output_file_base)
+        driver = gdal.GetDriverByName('GTiff')
         dst_ds = driver.Create(output_file,
                                new_cols,
                                new_rows,
                                1,
-                               gdal.GDT_Float32)
+                               gdal.GDT_Int16,
+			       options=['TILED=YES','BLOCKXSIZE=128','BLOCKYSIZE=128', 'COMPRESS=DEFLATE'])
 
         #writting output raster
         dst_ds.GetRasterBand(1).WriteArray( data )
@@ -136,10 +139,11 @@ def split(file_name, n):
         dst_ds.SetGeoTransform(new_transform)
 
         wkt = dataset.GetProjection()
-
         # setting spatial reference of output raster
         srs = osr.SpatialReference()
-        srs.ImportFromWkt(wkt)
+        srs.ImportFromProj4('+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +a=6371200 +b=6371200 +units=m +no_defs')
+        #srs.SetAttrValue("CENTRAL_MERIDIAN",-95)
+        print (srs.ExportToProj4())
         dst_ds.SetProjection( srs.ExportToWkt() )
 
         #Close output raster dataset
@@ -149,4 +153,4 @@ def split(file_name, n):
 
     dataset = None
 
-split sys.argv[0] sys.argv[1]
+split(sys.argv[1],int(sys.argv[2]))
