@@ -51,6 +51,8 @@ WORKDIR ${CATALINA_HOME}
 COPY setenv.sh.tpl ${CATALINA_HOME}/bin/setenv.sh
 COPY wxs_wps-1.0.jar ${GEOSERVER_EXT_DIR} 
 COPY context.xml $CATALINA_HOME/conf
+#COPY server.xml $CATALINA_HOME/conf
+#COPY cacerts /etc/ssl/certs/java/cacerts
 # Used a different sed delimiter because of https://github.com/moby/moby/issues/32140
 RUN sed -i -r "s|%%GEOSERVER_DATA_DIR%%|${GEOSERVER_DATA_DIR}|" \
     ${CATALINA_HOME}/bin/setenv.sh
