@@ -8,45 +8,46 @@ WORKSPACE="rtma"
 RTMA_DIR=${DATA_DIR}/rtma
 RTMA_FTP='ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod'
 REMOTE_FILES=() #initially empty array
-DATASETS=('varanl' 'pcp' 'rhm')
+DATASETS=('varanl' 'pcp')
 PATTERNS=('rtma2p5.*.2dvaranl_ndfd.grb2_wexp' 'rtma2p5.*.pcp.184.grb2' 'rtma2p5.*.2dvaranl_ndfd.grb2_wexp')
-VARS=('2t' '2r' 'tp' '10si' '10wdir' 'tcc' 'solar') 
-EXTRACT_FROM=('varanl' 'rhm' 'pcp' 'varanl' 'varanl' 'varanl' 'varanl')
-BAND=(3 1 1 9 8 13 0)
+VARS=('2t' 'tcc' 'tp' '10si' '10wdir' '2r' 'solar')
+DERIVED=(0 0 0 0 0 1 1)
+FUNCTION=('' '' '' '' '' 'derive_rhm' 'compute_solar')
+EXTRACT_FROM=('varanl' 'varanl' 'pcp' 'varanl' 'varanl' 'varanl' 'varanl')
+BAND=(3 13 1 9 8 0 0)
 PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs'
-RHM_SRS='+proj=lcc +lat_0=0 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6367470 +units=m +no_defs'
 counter=0
 
 ELEV_FILE=${RTMA_DIR}/rtma_dem.tif
 
 function derive_rhm {
-   for src in `find ${RTMA_DIR}/varanl/grb -name '*_wexp' |sort`
-   do
-     f=`echo ${src}|cut -d '/' -f 9-`
-     if [ ! -f ${RTMA_DIR}/rhm/grb/${f} ] ; then
-       dirname=`echo ${src}|cut -d '/' -f 9`
-       mkdir -p ${RTMA_DIR}/rhm/grb/${dirname}      
-       cdo -s invertlat \
-		-expr,'2r=(exp(1.81+(2d*17.27- 4717.31) / (2d - 35.86))/exp(1.81+(2t*17.27- 4717.31) / (2t - 35.86)))*100' \
-		${src} ${RTMA_DIR}/rhm/grb/$f
-     fi
-   done
+   gdal_calc.py --quiet --format=GTiff --type Int16 \
+      --co=PROFILE=GeoTIFF --co=COMPRESS=DEFLATE --co=TILED=YES --co=NUM_THREADS=ALL_CPUS \
+      --calc='(exp(1.81+(A*17.27- 4717.31) / (A - 35.86))/exp(1.81+(B*17.27- 4717.31) / (B - 35.86)))*100' \
+      --outfile=${2} \
+      -A ${1} --A_band=4 -B ${1} --B_band=3
+
+   gdal_edit.py -a_srs "${PROJ4_SRS}" ${2}
+
+   #cdo -s invertlat \
+   #   -expr,'2r=(exp(1.81+(2d*17.27- 4717.31) / (2d - 35.86))/exp(1.81+(2t*17.27- 4717.31) / (2t - 35.86)))*100' \
+   #   ${1} ${RTMA_DIR}/rhm/grb/$f
 }		      
 
-function compute_solar_file {
-   if [ -f ${1} ]; then
-      minute=0
-      hour=${1:68:2}
-      day=${1:56:2}
-      month=${1:54:2}
-      year=${1:50:4}
-      solar_grid --cloud-file ${1} \
-	      --num-threads 6 --day ${day} --month ${month} \
-	      --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
-	      ${ELEV_FILE} ${2}.asc
-      gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} ${2}.asc ${2}
-      rm ${2}.{asc,prj}
-   fi
+function compute_solar {
+   f=`echo ${1}|cut -d '/' -f 9-` #get last two tokens, containing dir and file name
+   cloud_file=${RTMA_DIR}/varanl/tif/tcc/${f}
+   minute=0
+   hour=${cloud_file:68:2}
+   day=${cloud_file:56:2}
+   month=${cloud_file:54:2}
+   year=${cloud_file:50:4}
+   solar_grid --cloud-file ${cloud_file} \
+           --num-threads 6 --day ${day} --month ${month} \
+           --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
+           ${ELEV_FILE} ${2}.asc
+   gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} ${2}.asc ${2}
+   rm ${2}.{asc,prj}
 }
 
 function remove_file_from_mosaic {
@@ -107,8 +108,6 @@ do
    #which is derived from varanl data:
    if [ ! ${d} = 'rhm' ] ; then
       download_${d} $FILE_DIR/grb
-   else
-      derive_rhm
    fi
    
    #Sorted list of locally stored Grib files:
@@ -150,17 +149,13 @@ do
       if [ ! -f ${FILE_DIR}/tif/${var}/${f} ]; then
         dirname=`echo ${i}|cut -d '/' -f 9`
         mkdir -p ${FILE_DIR}/tif/${var}/${dirname}
-	if [ ${var} = '2r' ]; then
-		PROJ4_SRS=${RHM_SRS}
-	fi
-	if [ ${var} = 'solar' ]; then
-		compute_solar_file ${FILE_DIR}/tif/tcc/${f} ${FILE_DIR}/tif/${var}/${f}
+	if [ ${DERIVED[${counter}]} = 1 ]; then
+		${FUNCTION[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	else
-		gdal_translate -q -of GTiff -co PROFILE=GeoTIFF -co COMPRESS=DEFLATE -co NUM_THREADS=ALL_CPUS \
-			-co TILED=YES -a_srs "${PROJ4_SRS}" \
+		gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${PROJ4_SRS}" \
 			-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	fi
-	rm ${FILE_DIR}/tif/${var}/${f}.aux.xml
+	find ${FILE_DIR}/tif/${var} -name '*.aux.xml' -delete
 	#add new file to mosaic:
 	curl -s -u admin:geoserver -XPOST \
 		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/tif/${var}/${f} \
