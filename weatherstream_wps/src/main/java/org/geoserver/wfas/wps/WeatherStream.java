@@ -24,6 +24,7 @@ import javax.measure.Quantity;
 import javax.measure.quantity.Length;
 import javax.measure.quantity.Speed;
 import javax.measure.quantity.Temperature;
+import javax.measure.quantity.Volume;
 
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.CoverageInfo;
@@ -61,8 +62,8 @@ public class WeatherStream extends WFASProcess {
 	private Calendar cal = Calendar.getInstance();
 	private static final Logger LOGGER = Logger.getLogger(WeatherStream.class.toString());
 	private List<String> namespaces = Arrays.asList("rtma", "ndfd", "gfs");
-	//private List<String> coveragesList = Arrays.asList("Temperature");//, "Relative_humidity", "Total_precipitation",
-			//"Wind_speed", "Wind_direction", "Cloud_cover");
+	private List<String> coveragesList = Arrays.asList("Temperature", "Relative_humidity", "Total_precipitation",
+			"Wind_speed", "Wind_direction", "Cloud_cover");
 	
 	public WeatherStream(Catalog catalog) {
 		super(catalog);
@@ -221,6 +222,19 @@ public class WeatherStream extends WFASProcess {
 
 		for (String ns : namespaces) {
 			List<CoverageInfo> ciList = catalog.getCoveragesByNamespace(catalog.getNamespaceByPrefix(ns));
+			List<CoverageInfo> toIgnore = new ArrayList<CoverageInfo>();
+			/*
+			 * filter out coverages not needed for the WeatherStream output
+			 * (e.g. exclude Solar radiation)
+			 * to avoid unnecessary reading
+			 */
+			for (CoverageInfo ci: ciList) {
+				if (!coveragesList.contains(ci.getName())) {
+					toIgnore.add(ci);
+				}
+			}
+			ciList.removeAll(toIgnore);
+			toIgnore=null;
 			
 			String timestamps = ciList.get(0)
 					.getGridCoverageReader(null, null)
@@ -295,7 +309,7 @@ public class WeatherStream extends WFASProcess {
 						+ String.format("%02d",cal.get(Calendar.MINUTE))
 						+ String.format("%1$8s", new DecimalFormat("#").format(wr.tmp))
 						+ String.format("%1$7s", new DecimalFormat("#").format(wr.rh))
-						+ String.format("%1$11s", new DecimalFormat("0.00").format(wr.tp))
+						+ String.format("%1$10s", new DecimalFormat("0.000").format(wr.tp))
 						+ String.format("%1$9s", new DecimalFormat("#").format(wr.ws))
 						+ String.format("%1$9s", new DecimalFormat("#").format(wr.wd))
 						+ String.format("%1$6s", new DecimalFormat("#").format(wr.cc)) + "\n");
@@ -359,11 +373,12 @@ class UnitFormatter{
 			 * all datasets provide precip in kg/m2 units which is the same as mm per time
 			 * period
 			 */
-			Quantity<Length> l;
+			
 			if (useEnglishUnits) {
-				l =  Quantities.getQuantity(val.floatValue()/1000,Units.METRE)
-						.to(USCustomary.INCH);
-				wr.tp =l.getValue().floatValue();
+				/*
+				 * convert mm to inches:
+				 */
+				wr.tp = (float) (val.floatValue()*0.04);
 			} else {
 				wr.tp = val.floatValue();
 			}
