@@ -28,10 +28,6 @@ function derive_rhm {
       -A ${1} --A_band=4 -B ${1} --B_band=3
 
    gdal_edit.py -a_srs "${PROJ4_SRS}" ${2}
-
-   #cdo -s invertlat \
-   #   -expr,'2r=(exp(1.81+(2d*17.27- 4717.31) / (2d - 35.86))/exp(1.81+(2t*17.27- 4717.31) / (2t - 35.86)))*100' \
-   #   ${1} ${RTMA_DIR}/rhm/grb/$f
 }		      
 
 function compute_solar {
@@ -141,7 +137,11 @@ do
    FILE_DIR=${RTMA_DIR}/${EXTRACT_FROM[${counter}]}
    #Sorted list of locally stored Grib files:
    CUR_FILES=(`find ${FILE_DIR}/grb -type f |sort`)
-
+   if [ ${var} = 'tp' ]; then
+	   dtype='Float32'
+   else
+	   dtype='Int16'
+   fi
    for i in ${CUR_FILES[@]}
    do
       f=`echo ${i}|cut -d '/' -f 9-` #get last two tokens, containing dir and file name
@@ -152,12 +152,12 @@ do
 	if [ ${DERIVED[${counter}]} = 1 ]; then
 		${FUNCTION[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	else
-		gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${PROJ4_SRS}" \
+		gdal_translate -q -of GTiff -ot ${dtype} ${GEOTIFF_OPTIONS} -a_srs "${PROJ4_SRS}" \
 			-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
 	fi
 	find ${FILE_DIR}/tif/${var} -name '*.aux.xml' -delete
 	#add new file to mosaic:
-	curl -s -u admin:geoserver -XPOST \
+	curl -u admin:geoserver -XPOST \
 		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/tif/${var}/${f} \
 	       	"${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/external.imagemosaic"
       fi
