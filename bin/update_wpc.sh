@@ -23,8 +23,9 @@ function remove_files_from_mosaic {
 	for c in ${COVERAGES[@]}
 	do
 	   #delete all granules:
+	   encoded=$(python -c "from urllib.parse import quote; print(quote('''$c'''))")
 	   curl -s -u admin:geoserver -XDELETE \
-		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml"
+		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${encoded}/index/granules.xml"
 	done
 }
 
