@@ -50,8 +50,8 @@ done
 FILE_DIR="${NBM_DIR}/${FORECAST}"
 for h in `seq -w 001 1 36`
 do
-   FILENAME="blend.t00z.master.f${h}.co.grib2"
-   wget -q -c "${REMOTE_URL}/${FORECAST}/00/grib2/${FILENAME}" \
+   FILENAME="blend.t00z.core.f${h}.co.grib2"
+   wget -q -c "${REMOTE_URL}/${FORECAST}/00/core/${FILENAME}" \
 		-O ${FILE_DIR}/${FILENAME};
 
    t=`gdalinfo ${FILE_DIR}/${FILENAME} \
@@ -88,4 +88,4 @@ do
 	   curl -s -u admin:geoserver -H "Content-type: text/plain" -d "file://"{}  \
 	      "${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic" \;
 done
-rm -rf ${NBM_DIR}/blend*
+#rm -rf ${NBM_DIR}/blend*
