@@ -61,16 +61,18 @@ public class WeatherStream extends WFASProcess {
 	protected Date lastDate;
 	private Calendar cal = Calendar.getInstance();
 	private static final Logger LOGGER = Logger.getLogger(WeatherStream.class.toString());
-	private List<String> namespaces = Arrays.asList("rtma", "ndfd", "gfs");
+	protected List<String> namespaces = Arrays.asList("rtma", "ndfd", "gfs");
 	private List<String> coveragesList = Arrays.asList("Temperature", "Relative_humidity", "Total_precipitation",
 			"Wind_speed", "Wind_direction", "Cloud_cover");
+	protected CoverageInfo dem;
 	
 	public WeatherStream(Catalog catalog) {
 		super(catalog);
+		dem = catalog.getCoverageByName(LANDFIRE_NAMESPACE, LANDFIRE_DEM);
 		// TODO Auto-generated constructor stub
 	}
 	
-	private String getTimeZoneId(Point p) {
+	protected String getTimeZoneId(Point p) {
 		FeatureTypeInfo timezones = this.catalog.getFeatureTypeByName("osm", "timezones" );
 		FeatureCollection tzcoll = null;
 		try {
@@ -142,22 +144,7 @@ public class WeatherStream extends WFASProcess {
 		 */
 		lastDate=null;
 
-		/*
-		 * Determine which archive to query:
-		 */
-		switch (archive) {
-			case "rtma":
-				namespaces = Arrays.asList("rtma");
-				break;
-			case "ndfd":
-				namespaces = Arrays.asList("ndfd");
-				break;
-			case "gfs":
-				namespaces = Arrays.asList("gfs");
-				break;
-			default:
-				namespaces = Arrays.asList("rtma", "ndfd", "gfs");
-		}
+		setNameSpaceList(archive);
 		/*
 		 * Open an output stream to which to write:
 		 */
@@ -175,9 +162,6 @@ public class WeatherStream extends WFASProcess {
 		 * Check that input point is within CONUS extent 
 		 * and that we can get elev data for it:
 		 */
-		
-		CoverageInfo dem = catalog.getCoverageByName(LANDFIRE_NAMESPACE, LANDFIRE_DEM);
-		
 		GridCoverageReader dgc = dem.getGridCoverageReader(null, null);
 		GridCoverage dc = dgc.read(null);
 		
@@ -327,6 +311,28 @@ public class WeatherStream extends WFASProcess {
 		System.gc();
 		return new ByteArrayRawData(out.toByteArray(), "text/csv", "wxs");
 	}//end execute	
+
+	/**
+	 * @param archive
+	 */
+	protected void setNameSpaceList(String archive) {
+		/*
+		 * Determine which archive to query:
+		 */
+		switch (archive) {
+			case "rtma":
+				namespaces = Arrays.asList("rtma");
+				break;
+			case "ndfd":
+				namespaces = Arrays.asList("ndfd");
+				break;
+			case "gfs":
+				namespaces = Arrays.asList("gfs");
+				break;
+			default:
+				namespaces = Arrays.asList("rtma", "ndfd", "gfs");
+		}
+	}
 }//end class
 
 /**

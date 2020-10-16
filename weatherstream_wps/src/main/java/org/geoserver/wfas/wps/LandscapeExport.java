@@ -20,6 +20,7 @@ import org.geotools.process.factory.DescribeParameter;
 import org.geotools.process.factory.DescribeProcess;
 import org.geotools.process.factory.DescribeResult;
 import org.geotools.referencing.CRS;
+import org.geotools.referencing.operation.transform.AffineTransform2D;
 import org.geotools.util.Utilities;
 import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
@@ -90,36 +91,37 @@ public class LandscapeExport extends WFASProcess {
 			@DescribeParameter(name = "Longitude", description = "Center Longitude for Landscape file") Double lon,
 			@DescribeParameter(name = "Latitude", description = "Center latitude for Landscape file") Double lat,
 			//@DescribeParameter(name = "coverage", description = "Input raster") GridCoverage2D coverage,
-			@DescribeParameter(name = "version", description = "Landfire version (default is LF140)",min=0,defaultValue="LF140") LandfireVersion ver,
-			@DescribeParameter(name = "Scale Factor", description = "Output resolution: minimum value 0.1 (10 times coarser resolution), maximum=1 (original resolution). Default value is 1.", defaultValue="1", min=0, minValue=0.1, maxValue=1.0) double scaleFactor,
+			@DescribeParameter(name = "Version", description = "Landfire version (default is LF140)",min=0,defaultValue="LF140") LandfireVersion ver,
+			@DescribeParameter(name = "Resolution", description = "Output resolution (in meters): minimum 30 (default), maximum 300.", defaultValue="30", min=0, minValue=30, maxValue=300) double 
+			outputRes,
 			@DescribeParameter(name = "Extent", description = "Extent of the output files (in miles): minimum 5 , maximum 60. Default value is 5.", defaultValue="5", min=0, minValue=5, maxValue=60) Integer extent)
 			throws Exception {
 		/*
 		 * Check inputs for
 		 * out of range values:
 		 */
-		if (scaleFactor < 0.1) {
+		if (outputRes < 30) {
 			if (LOGGER.isLoggable(Level.FINE)) {
-				LOGGER.fine("Specified scale factor less than 0.1, setting to 0.1.");
-				scaleFactor = 0.1;
+				LOGGER.fine("Specified scale factor less than 30, setting to 30.");
 			}
-		} else if (scaleFactor > 1) {
+			outputRes = 30;
+		} else if (outputRes > 300) {
 				if (LOGGER.isLoggable(Level.FINE)) {
-					LOGGER.fine("Specified scale factor is more than 1, setting to 1.");
-					scaleFactor = 1.0;
+					LOGGER.fine("Specified scale factor is more than 300, setting to 300.");
 				}
+				outputRes = 300;
 		}//end if
 		
 		if (extent < 5) {
 			if (LOGGER.isLoggable(Level.FINE)) {
 				LOGGER.fine("Extent less than 5 miles, setting to 5.");
-				extent = 5;
 			}
+			extent = 5;
 		} else if (extent > 60) {
 			if (LOGGER.isLoggable(Level.FINE)) {
 				LOGGER.fine("Extent more than 60 miles, setting to 60.");
-				extent = 60;
 			}
+			extent = 60;
 		}//end if
 				
 		/**
@@ -208,11 +210,11 @@ public class LandscapeExport extends WFASProcess {
 		/*
 		 * Should we rescale?:
 		 */
-		if (scaleFactor<1) {
-			
-			result = handleRescaling(result,
-					Interpolation.getInstance(Interpolation.INTERP_NEAREST), scaleFactor);
-		}
+//		if (scaleFactor<1) {
+//			
+//			result = handleRescaling(result,
+//					Interpolation.getInstance(Interpolation.INTERP_NEAREST), scaleFactor);
+//		}
 		
 		//reproject to custom CRS
 		result = handleReprojection(result, crs,
@@ -220,6 +222,13 @@ public class LandscapeExport extends WFASProcess {
 
 		result =  cropCoverage(result,envelope);
 		
+		AffineTransform2D mt = (AffineTransform2D) result.getGridGeometry().getGridToCRS2D();
+		Double resX = mt.getScaleX();
+		Double resY = mt.getScaleY();
+		result = handleRescaling(result,
+				Interpolation.getInstance(Interpolation.INTERP_NEAREST), 
+				Math.abs(resX.doubleValue()/outputRes), 
+				Math.abs(resY.doubleValue()/outputRes));
 		return result;
 	}
 	
@@ -292,7 +301,7 @@ public class LandscapeExport extends WFASProcess {
 	 * hence utilizing "Resample" again. 
 	 */
 	private GridCoverage2D handleRescaling(GridCoverage2D coverage,
-			Interpolation spatialInterpolation, double scaleFactor) {
+			Interpolation spatialInterpolation, double scaleFactorX, double scaleFactorY) {
 		// checks
 		Utilities.ensureNonNull("interpolation", spatialInterpolation);
 		
@@ -307,15 +316,15 @@ public class LandscapeExport extends WFASProcess {
 		/*
 		 * Should we rescale?:
 		 */
-		if (scaleFactor<1) {
+		if (scaleFactorX!=1 && scaleFactorY!=1) {
 			GridGeometry2D curGridGeom = coverage.getGridGeometry();
 			Envelope curEnv = curGridGeom.getEnvelope2D();
 
 			GridEnvelope2D curGridEnv = curGridGeom.getGridRange2D();
 			// create new GridGeometry with current size*scaleFactor as many cells
 			GridEnvelope2D newGridEnv = new GridEnvelope2D(
-					curGridEnv.x, curGridEnv.y, ((int)(curGridEnv.width * scaleFactor)),
-					((int)(curGridEnv.height * scaleFactor)));
+					curGridEnv.x, curGridEnv.y, ((int)(curGridEnv.width * scaleFactorX)),
+					((int)(curGridEnv.height * scaleFactorY)));
 			GridGeometry newGridGeom = new GridGeometry2D(newGridEnv, curEnv);
 			parameters.parameter("GridGeometry").setValue(newGridGeom);
 		}else {
