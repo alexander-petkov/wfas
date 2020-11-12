@@ -88,4 +88,4 @@ do
 	   curl -s -u admin:geoserver -H "Content-type: text/plain" -d "file://"{}  \
 	      "${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic" \;
 done
-#rm -rf ${NBM_DIR}/blend*
+rm -rf ${NBM_DIR}/blend*

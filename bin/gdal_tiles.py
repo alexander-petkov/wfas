@@ -43,9 +43,9 @@ def create_tiles(minx, miny, maxx, maxy, n):
 def split(file_name, n):
     raw_file_name = os.path.splitext(os.path.basename(file_name))[0].replace("_downsample", "")
     raw_file_name = os.path.basename(file_name) 
-    driver = gdal.GetDriverByName('GRIB')
+    driver = gdal.GetDriverByName('GTiff')
     dataset = gdal.Open(file_name)
-    band = dataset.GetRasterBand(3)
+    band = dataset.GetRasterBand(1)
     transform = dataset.GetGeoTransform()
 
     extent = get_extent(dataset)
@@ -122,7 +122,7 @@ def split(file_name, n):
                                new_cols,
                                new_rows,
                                1,
-                               gdal.GDT_Int16,
+                               gdal.GDT_Float32,
 			       options=['TILED=YES','BLOCKXSIZE=128','BLOCKYSIZE=128', 'COMPRESS=DEFLATE'])
 
         #writting output raster
@@ -143,7 +143,7 @@ def split(file_name, n):
         srs = osr.SpatialReference()
         srs.ImportFromProj4('+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +a=6371200 +b=6371200 +units=m +no_defs')
         #srs.SetAttrValue("CENTRAL_MERIDIAN",-95)
-        print (srs.ExportToProj4())
+        #print (srs.ExportToProj4())
         dst_ds.SetProjection( srs.ExportToWkt() )
 
         #Close output raster dataset

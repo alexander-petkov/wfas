@@ -47,10 +47,17 @@ do
    tblname=`echo ${name}|awk '{print tolower($0)}'`
    echo `date && md5sum ${FIRMS_DIR}/$ZIPFILE` >>${FIRMS_DIR}/change_tracking.log
    unzip -qq -e -o ${FIRMS_DIR}/${ZIPFILE} -d ${FIRMS_DIR} 
+   export OGR_TRUNCATE=YES
    ogr2ogr -f PostgreSQL \
 	   -a_srs EPSG:4326 \
 	   PG:"host=localhost user=docker password=docker dbname=wfas schemas=firms port=7777" \
 	   -clipsrc -180 15 -50 75 \
+	   ${FIRMS_DIR}/${name}.shp ${name}
+   export OGR_TRUNCATE=NO
+   ogr2ogr -f PostgreSQL \
+	   -a_srs EPSG:4326 \
+	   PG:"host=localhost user=docker password=docker dbname=wfas schemas=firms port=7777" \
+	   -clipsrc -70 -23 -57 10 \
 	   ${FIRMS_DIR}/${name}.shp ${name}
    ogrinfo PG:"host=localhost user=docker password=docker dbname=wfas schemas=firms port=7777" \
 	   -sql "REINDEX table firms."${tblname}
