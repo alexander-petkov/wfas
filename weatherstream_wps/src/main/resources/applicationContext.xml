@@ -2,6 +2,10 @@
   <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
 <beans>
 	<bean id="WeatherStream" class="org.geoserver.wfas.wps.WeatherStream" ></bean>
+	<bean id="WeatherStreamSA" class="org.geoserver.wfas.wps.WeatherStreamSA" ></bean>
 	<bean id="LandscapeExport" class="org.geoserver.wfas.wps.LandscapeExport" ></bean>
+	<bean id="AggregateMultipleFeatures" class="org.geoserver.wfas.wps.AggregateMultipleProcess" ></bean>
 	<bean id="GeotifPPIO" class="org.geoserver.wps.ppio.GeoTifPPIO" ></bean>
+	<bean id="aggregateMultipleProcessResultJSONPPIO" class="org.geoserver.wps.gs.AggregateMultipleProcessJSONPPIO"/>
+	<bean id="aggregateMultipleProcessResultPPIO" class="org.geoserver.wps.gs.AggregateMultipleProcessPPIO"/>
 </beans>
