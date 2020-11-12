@@ -24,7 +24,6 @@ import javax.measure.Quantity;
 import javax.measure.quantity.Length;
 import javax.measure.quantity.Speed;
 import javax.measure.quantity.Temperature;
-import javax.measure.quantity.Volume;
 
 import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.CoverageInfo;
@@ -51,8 +50,8 @@ import org.opengis.parameter.GeneralParameterValue;
 import org.opengis.parameter.ParameterValue;
 
 import systems.uom.common.USCustomary;
-import tec.uom.se.quantity.Quantities;
-import tec.uom.se.unit.Units;
+import tech.units.indriya.quantity.Quantities;
+import tech.units.indriya.unit.Units;
 
 @DescribeProcess(title = "WeatherStream", description = "A Web Processing Service which generates Weather Stream  output for use in Flammap/Farsite")
 public class WeatherStream extends WFASProcess {
