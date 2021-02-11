@@ -10,8 +10,8 @@ WORKSPACE="wfas"
 #Local storage locations:
 WFAS_DIR=${DATA_DIR}/wfas
 
-VARS=('erc' 'bi' 'fbx')
-EXT=('perc_new' 'perc_new' 'new')
+VARS=('erc' 'bi' 'fbx' 'fm1000')
+EXT=('_perc_new' '_perc_new' '_new' '')
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
@@ -38,10 +38,10 @@ do
    
    for d in `seq 0 6`
    do
-      if curl -s -I ${REMOTE_ADDR}/${v}_day${d}_${EXT[${counter}]}.tif; then #check that remote file exists
+      if curl -s -I ${REMOTE_ADDR}/${v}_day${d}${EXT[${counter}]}.tif; then #check that remote file exists
          date=`date +'%Y%m%d' -d '+'${d}' days'`
-         wget -q -N ${REMOTE_ADDR}/${v}_day${d}_${EXT[${counter}]}.tif \
-            -O ${WFAS_DIR}/${v}/tif/${v}${date}.tif ;
+         wget -q -N ${REMOTE_ADDR}/${v}_day${d}${EXT[${counter}]}.tif \
+            -O ${WFAS_DIR}/${v}/tif/${v}_${date}.tif ;
       fi
    done
    #now reindex the mosaic:  
