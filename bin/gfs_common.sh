@@ -5,8 +5,8 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source ${DIR}/globals.env
 
 DATASETS=('UGRD'  'VGRD'  'APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WSPD' 'SOLAR') 
-DERIVED=(0 0 1 0 0 0 1 1 1) #is the dataset downloaded, or derived from other variables?
-FUNCTION=('' '' 'derive_apcp' '' '' '' 'derive_wdir' 'derive_wspd' 'compute_solar') 
+DERIVED=(0 0 1 0 1 0 1 1 1) #is the dataset downloaded, or derived from other variables?
+FUNCTION=('' '' 'derive_apcp' '' 'derive_tcdc' '' 'derive_wdir' 'derive_wspd' 'compute_solar') 
 LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' 'surface')
 
 #NOMADS setup:
@@ -21,7 +21,7 @@ function derive_apcp {
    for h in `seq 3 1 120 && seq 123 3 384`
    do
       current=$(printf "%03d" ${h})
-      wget -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${current}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00" \
+      wget -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${current}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
 	-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.tmp;
       #rewrite the grid from 0-360 to -180 180 lon range:
       cdo -s -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.tmp \
@@ -87,8 +87,27 @@ function derive_wspd {
       fi
    done
 }
+
+function derive_tcdc { 
+   for h in `seq -w 003 1 384`
+   do
+       wget -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
+		-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp;
+      if [ -s ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp ]  
+      then
+	 #rewrite the grid from 0-360 to -180 180 lon range:
+         cdo -s -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
+            ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
+	  t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/TCDC/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
+	  date=`date  -d $t +'%Y%m%d%H%M'`
+          gdal_translate -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
+	     NETCDF:"${GFS_DIR}/TCDC/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc":tcc_2 \
+	     ${GFS_DIR}/TCDC/${date}.tif
+      fi
+   done
+}
 function compute_solar {
-   for cloud_file in ${GFS_DIR}/TCDC/tif/*.tif
+   for cloud_file in ${GFS_DIR}/TCDC/*.tif
    do
       filename=$(basename ${cloud_file} .tif)
       minute=${filename: -2}
@@ -133,7 +152,7 @@ function download_data {
       if [ ${DERIVED[$counter]} = 0 ]; then 
          for h in `seq -w 003 1 384`
          do 
-            wget  -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00" \
+            wget -q  "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
 		-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp;
 	    if [ -s ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp ]  
 	    then
