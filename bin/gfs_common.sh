@@ -5,6 +5,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source ${DIR}/globals.env
 
 DATASETS=('UGRD'  'VGRD'  'APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WSPD' 'SOLAR') 
+COVERAGES=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WSPD' 'SOLAR') 
 DERIVED=(0 0 1 0 1 0 1 1 1) #is the dataset downloaded, or derived from other variables?
 FUNCTION=('' '' 'derive_apcp' '' 'derive_tcdc' '' 'derive_wdir' 'derive_wspd' 'compute_solar') 
 LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' 'surface')
@@ -48,12 +49,12 @@ function derive_apcp {
 		  --calc='(A-B)' \
 		  --outfile=${FILE_DIR}/${date}.tif
       fi
-
+      sleep 1
    done
 }
 
 function derive_wdir {
-   for h in `seq -w 003 1 384`
+   for h in `seq -w 003 1 120 && seq 123 3 384`
    do 
       if [ -s ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ]
       then
@@ -71,7 +72,7 @@ function derive_wdir {
    done
 }
 function derive_wspd {
-   for h in `seq -w 003 1 384`
+   for h in `seq -w 003 1 120 && seq 123 3 384`
    do
       if [ -s ${GFS_DIR}/UGRD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc ]
       then
@@ -89,7 +90,7 @@ function derive_wspd {
 }
 
 function derive_tcdc { 
-   for h in `seq -w 003 1 384`
+   for h in `seq -w 003 1 120 && seq 123 3 384`
    do
        wget -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
 		-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp;
@@ -104,6 +105,7 @@ function derive_tcdc {
 	     NETCDF:"${GFS_DIR}/TCDC/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc":tcc_2 \
 	     ${GFS_DIR}/TCDC/${date}.tif
       fi
+      sleep 1
    done
 }
 function compute_solar {
@@ -131,10 +133,21 @@ function remove_files_from_mosaic {
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for c in ${COVERAGES[@]}
 	do
-	   #delete all granules:
-	   echo ${c}
-	   curl -s -u admin:geoserver -XDELETE \
-		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml"
+	   #delete granules from previous forecast
+	   #(but retain first 24 hours)
+	   #and granules older than 6 weeks:
+	   FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST|cut -d '.' -f 2\``
+	   SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST|cut -d '.' -f 2\`-'6 weeks'`
+	   filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GT%20'${FORECAST_START}')"
+	   TO_REMOVE=(`curl -s -u admin:geoserver -XGET \
+		   "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml?filter=${filter}" \
+		   |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
+	   for g in ${TO_REMOVE[@]}
+	   do
+	   	curl -s -u admin:geoserver -XDELETE \
+			"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml?filter=location='${g}'"
+		rm -f ${g} ${g}.xml
+	   done
 	done
 }
 
@@ -150,9 +163,9 @@ function download_data {
       #in which case we calculate it:
       #1. If dataset is not derived, get data
       if [ ${DERIVED[$counter]} = 0 ]; then 
-         for h in `seq -w 003 1 384`
+         for h in `seq -w 003 1 120 && seq 123 3 384`
          do 
-            wget -q  "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
+            wget -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
 		-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp;
 	    if [ -s ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp ]  
 	    then
@@ -164,7 +177,8 @@ function download_data {
                gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
 		  -a_srs wgs84 -b 1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
 		  ${FILE_DIR}/${date}.tif
-	  fi
+	   fi
+	   sleep 1
          done
       elif [ ${DERIVED[$counter]} = 1 ]; then #derive dataset:
          ${FUNCTION[counter]} ${d} #execute corresponding derive function
@@ -187,7 +201,6 @@ do
    #remove granules from mosaic catalog:
    remove_files_from_mosaic ${d}
    #remove old granules from system:
-   rm  ${FILE_DIR}/tif/*.tif*
    find ${FILE_DIR} -empty -type f -delete ;
    rm ${FILE_DIR}/*.tmp ;
    rm ${FILE_DIR}/*.nc ;
