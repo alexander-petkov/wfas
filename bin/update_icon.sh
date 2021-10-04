@@ -191,15 +191,12 @@ function update_geoserver {
 }
 download_data
 isohedral2latlon
+#Get forecast start date in YYYYMMDD format
+#by scraping the first filename for temperature:
 FORECAST=`find ${ICON_DIR}/t_2m -name '*.0125'|head -n 1|rev \
 	|cut -d '_' -f 4 |rev|cut -c 1-8` 
 echo ${FORECAST}
 make_geotiffs
 update_geoserver
-#FORECAST='20210925'
-#for c in ${COVERAGESTORES[@]}
-#do
-#	remove_files_from_mosaic_test ${c}
-#done
 #remove old granules from system:
 find ${ICON_DIR} -name '*.grib2*' -type f -delete ;
