@@ -61,9 +61,14 @@ function remove_file_from_mosaic {
 function download_varanl {
    for file in ${REMOTE_FILES[@]}
    do
-      wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=${1} -N  --no-parent \
+      indexed=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT 1 from rtma.varanl_granules where granule='${file}'"`;
+      if [ "${indexed}" != "1" ]; then 
+      	ogrinfo PG:"host=localhost user=docker password=docker dbname=wfas port=7777" \
+		-sql "INSERT into rtma.varanl_granules values('${file}')"
+      	wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=${1} -N  --no-parent \
          -A${PATTERNS[counter]} \
          ${RTMA_FTP}/${file}
+      fi
    done
    #printf "${RTMA_FTP}"/'%s\n' "${REMOTE_FILES[@]}" \
    #	   | xargs -P10  wget -q --cut-dirs 6 -c -i --directory-prefix=${1}  
@@ -79,8 +84,14 @@ function download_pcp {
    #	   | xargs -P10  wget -q --cut-dirs 6 -xnH -c -i --directory-prefix=${1} -N 
    for file in ${PCP_FILES[@]}
    do
-      wget -q --cut-dirs 6 -xnH -c --directory-prefix=${1} -N  --no-parent \
+	
+      indexed=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT 1 from rtma.pcp_granules where granule='${file}'"`;
+      if [ "${indexed}" != "1" ]; then 
+      	ogrinfo PG:"host=localhost user=docker password=docker dbname=wfas port=7777" \
+		-sql "INSERT into rtma.pcp_granules values('${file}')"
+      	wget -q --cut-dirs 6 -xnH -c --directory-prefix=${1} -N  --no-parent \
    	   ${RTMA_FTP}/${file}
+      fi
    done
 }
 
@@ -108,6 +119,7 @@ do
    
    #Sorted list of locally stored Grib files:
    LOCAL_FILES=(`find ${FILE_DIR}/grb -name '*'${PATTERNS[counter]}'*' |cut -d '/' -f 9-|sort`)
+   LOCAL_FILES=(`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT granule from rtma.${d}_granules order by granule asc"`)
    if [ ${d} = 'pcp' ] ; then
 	#rewrite pcp file name to a coresponding time step varanl name,
 	#so we keep pcp archive aligned with varanl in time
@@ -122,11 +134,10 @@ do
 	      #rewrite back to pcp file name:
 	      i=`echo ${i}|awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'`
       fi
-      #remove old granule from system:
+      #remove old granule from index:
+      psql -A -t -h localhost -p7777 -Udocker wfas -c "DELETE from rtma.${d}_granules where granule='${i}'"
       find $FILE_DIR/grb -path '*'${i} -delete
    done
-   #Remove empty directories:
-   find ${FILE_DIR}/grb -empty -type d -name 'rtma2p5.*' -delete
    (( counter++ ))
 done
 
@@ -135,6 +146,7 @@ counter=0
 for var in ${VARS[@]}
 do 
    FILE_DIR=${RTMA_DIR}/${EXTRACT_FROM[${counter}]}
+   dataset=${EXTRACT_FROM[${counter}]}
    #Sorted list of locally stored Grib files:
    CUR_FILES=(`find ${FILE_DIR}/grb -type f |sort`)
    if [ ${var} = 'tp' ]; then
@@ -172,22 +184,35 @@ do
    for i in ${MOSAIC_FILES[@]}
    do
       f=`echo ${i}|cut -d '/' -f 10-` #get last two tokens, containing dir and file name
-      if [ ! -f ${FILE_DIR}/grb/${f} ]; then
+      indexed=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT 1 from rtma.${dataset}_granules where granule='${f}'"`;
+      if [ "${indexed}" != "1" ]; then 
+      #if [ ! -f ${FILE_DIR}/grb/${f} ]; then
 	#remove from mosaic
 	remove_file_from_mosaic $var $i
 	#remove from file system
-	rm -f ${i}
+	#rm -f ${i}
       fi
    done
    #remove residual tif granules, if any:
    for f in `find ${FILE_DIR}/tif/${var} -path '*rtma*_wexp' -type f|rev|cut -d '/' -f 1,2|rev`
    do 
-	   if [ ! -f  ${FILE_DIR}/grb/$f ] ; then 
-		   rm ${FILE_DIR}/tif/${var}/${f} 
-	   fi 
+      indexed=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT 1 from rtma.varanl_granules where granule='${f}'"`;
+      if [ "${indexed}" != "1" ]; then 
+	   #if [ ! -f  ${FILE_DIR}/grb/$f ] ; then 
+	   rm ${FILE_DIR}/tif/${var}/${f} 
+      fi 
    done
    #Remove empty directories:
    find ${FILE_DIR}/tif/${var} -empty -type d -name 'rtma2p5.*' -delete
    (( counter++ ))
 done
 
+for d in ${DATASETS[@]}
+do 
+   #RTMA grib files local storage locations:
+   FILE_DIR=${RTMA_DIR}/${d}
+   #Remove GRIB files:
+   find ${FILE_DIR}/grb -type f -name '*grb*' -delete
+   #Remove empty directories:
+   find ${FILE_DIR}/grb -empty -type d -name 'rtma2p5.*' -delete
+done
