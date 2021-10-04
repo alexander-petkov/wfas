@@ -17,6 +17,7 @@ HOUR='t00z' #forecast hour
 #get latest forecast run:
 FORECAST=`curl -s -l https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/|cut -d '"' -f 2|cut -d '/' -f 1|grep 'gfs\.'|tail -n 1`
 #END NOMADS Setup
+echo ${FORECAST}
 
 function derive_apcp {      
    for h in `seq 3 1 120 && seq 123 3 384`
@@ -136,7 +137,7 @@ function remove_files_from_mosaic {
 	   #delete granules from previous forecast
 	   #(but retain first 24 hours)
 	   #and granules older than 6 weeks:
-	   FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST|cut -d '.' -f 2\``
+	   FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST|cut -d '.' -f 2\`+'2 hours'`
 	   SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST|cut -d '.' -f 2\`-'6 weeks'`
 	   filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GT%20'${FORECAST_START}')"
 	   TO_REMOVE=(`curl -s -u admin:geoserver -XGET \
