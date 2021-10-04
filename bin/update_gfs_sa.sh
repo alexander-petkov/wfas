@@ -9,6 +9,8 @@ GFS_DIR=${DATA_DIR}/gfs_sa
 ELEV_FILE=${GFS_DIR}/gfs_sa_dem.tif
 #Bolivia:
 SUBREGION='subregion=&leftlon=-70&rightlon=-57&toplat=-10&bottomlat=-23'
+#Extend to include  Colombia, Peru, Brazil, and Ecuador:
+SUBREGION='subregion=&leftlon=-81.6&rightlon=-34.2&toplat=13&bottomlat=-35.3'
 
 download_data 
 
