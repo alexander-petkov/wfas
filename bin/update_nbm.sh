@@ -7,6 +7,7 @@ source ${DIR}/globals.env
 WORKSPACE="nbm"
 NBM_DIR=${DATA_DIR}/nbm
 DATASETS=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WIND' 'DSWRF') 
+DATA_TYPE=('Float32' 'Int16' 'Int16' 'Int16' 'Int16' 'Float32' 'Int16')
 #Below are parameter filters in KVP format, 
 #used by grib_copy to extract the appropriate band
 #for each variable:
@@ -62,10 +63,11 @@ do
    do 
       grib_copy -w ${GRIB_FILTERS[${counter}]} ${FILE_DIR}/${FILENAME} \
 	       ${FILE_DIR}/${FILENAME}.${DATASETS[${counter}]}	
-      gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS}  ${FILE_DIR}/${FILENAME}.${DATASETS[${counter}]} \
+      gdal_translate -q -b 1 -ot ${DATA_TYPE[${counter}]} \
+	      -of GTiff ${GEOTIFF_OPTIONS}  ${FILE_DIR}/${FILENAME}.${DATASETS[${counter}]} \
 	      ${NBM_DIR}/${d}/${FORECAST}/${date}.tif
       gdal_edit.py -a_srs "${PROJ4_SRS}" ${NBM_DIR}/${d}/${FORECAST}/${date}.tif
-      #rm ${NBM_DIR}/${d}/${FORECAST}/${date}.tif.aux.xml
+      rm ${NBM_DIR}/${d}/${FORECAST}/${date}.tif.aux.xml
       (( counter++ ))
    done
 done
