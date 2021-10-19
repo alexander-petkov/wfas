@@ -51,19 +51,6 @@ do
    ogr2ogr -f PostgreSQL \
 	   -a_srs EPSG:4326 \
 	   PG:"host=localhost user=docker password=docker dbname=wfas schemas=firms port=7777" \
-	   -clipsrc -180 15 -50 75 \
-	   ${FIRMS_DIR}/${name}.shp ${name}
-   export OGR_TRUNCATE=NO
-   ogr2ogr -f PostgreSQL \
-	   -a_srs EPSG:4326 \
-	   PG:"host=localhost user=docker password=docker dbname=wfas schemas=firms port=7777" \
-	   -clipsrc -70 -23 -57 10 \
-	   ${FIRMS_DIR}/${name}.shp ${name}
-   #Balkans extent:
-   ogr2ogr -f PostgreSQL \
-	   -a_srs EPSG:4326 \
-	   PG:"host=localhost user=docker password=docker dbname=wfas schemas=firms port=7777" \
-	   -clipsrc 13 34 30 49 \
 	   ${FIRMS_DIR}/${name}.shp ${name}
    ogrinfo PG:"host=localhost user=docker password=docker dbname=wfas schemas=firms port=7777" \
 	   -sql "REINDEX table firms."${tblname}
