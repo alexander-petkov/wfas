@@ -6,7 +6,6 @@ source ${DIR}/globals.env
 
 WORKSPACE="cfs"
 COVERAGESTORES=('2t' '2r' 'tcc' 'dswrf' 'wdir' 'wspd' 'prate') 
-COVERAGESTORES=('tcc') 
 DATASETS=('flx' 'pgb' 'flx' 'flx' 'flx' 'flx' 'flx') 
 DATASETS=('flx')
 BAND=(38 368 53 16 0 0 31)
@@ -156,7 +155,7 @@ function update_geoserver {
 	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${c}/external.imagemosaic" \;
    done
 }
-#process_data
+process_data
 update_geoserver
 #remove old granules from system:
 find ${CFS_DIR} -name '*.grb2*' -type f -delete ;
