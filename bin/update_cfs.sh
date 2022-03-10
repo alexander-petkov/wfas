@@ -17,7 +17,6 @@ FUNCTION=('' 'derive_rh' '' '' 'derive_wdir' 'derive_wspd' '')
 latest_forecast=`curl -s --list-only https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod/cfs/|grep -oP '(?<=">)cfs.*(?=/</a>)'|sort|tail -n1`
 FORECAST=`echo ${latest_forecast} | cut -d '.' -f 2`
 CFS_URL="https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod/cfs/${latest_forecast}/00/6hrly_grib_01/"
-DATA_DIR="/mnt/cephfs/geoserver/data_dir/data"
 CFS_DIR="${DATA_DIR}/cfs"
 #END CFS Setup
 
@@ -91,9 +90,7 @@ function remove_files_from_mosaic {
 	   do
 	   	curl -s -u admin:geoserver -XDELETE \
 			"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${cv}/index/granules.xml?filter=location='${g}'"
-		file=`echo ${g}|rev|cut -d '/' -f 1|rev`
-		aws s3 rm  --recursive s3://wfas-data/${WORKSPACE}/${1}/tif \
-			--exclude "*" --include "${file}*" 
+		rm -f ${g} ${g}.xml
 	   done
 	   unset g
 	done
@@ -134,9 +131,7 @@ function make_geotiffs {
       sed -i -e 's/to_replace/'${date}'.tif.tmp/' ${FILE_DIR}/${date}.vrt
       gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
 	${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif
-      gdaladdo -q -ro ${FILE_DIR}/${date}.tif 2 
-      rm ${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif.tmp \
-	      ${FILE_DIR}/${date}.tif.aux.xml ${FILE_DIR}/${date}.tif.tmp.aux.xml
+      rm ${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif.tmp ${FILE_DIR}/${date}.tif.aux.xml
       (( counter++ ))
    done
 }
@@ -153,17 +148,11 @@ function update_geoserver {
       #remove granules from mosaic catalog:
       remove_files_from_mosaic ${c}
       #2. Move new granules in place:
-      aws s3 sync  --quiet ${FILE_DIR} s3://wfas-data/cfs/${c}/tif \
-	      --include "*.tif*" --exclude "*.properties" --exclude "*.dat"
-
-      find ${CFS_DIR}/${c} -name '*.tif*' -type f -delete ;
+      mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
       #3.Re-index mosaic:
-      for f in `aws s3 ls "s3://wfas-data/cfs/${c}/tif/"|grep .tif$|rev|cut -d ' ' -f 1 |rev`
-      do
-	   curl  -s -u admin:geoserver -XPOST -H "Content-type: text/plain" \
-	     -d "https://wfas-data.s3.us-west-2.amazonaws.com/cfs/${c}/tif/${f}" \
-	     "${REST_URL}/${WORKSPACE}/coveragestores/${c}/remote.imagemosaic"
-      done
+      find ${FILE_DIR}/tif -name '*.tif' \
+	   -exec curl -s -u admin:geoserver -H "Content-type: text/plain" \
+	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${c}/external.imagemosaic" \;
    done
 }
 process_data
