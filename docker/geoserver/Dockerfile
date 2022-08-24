@@ -1,13 +1,13 @@
 FROM wfas/wfas-repo:tomcat-8-jre8-alpine
 
 ENV CATALINA_HOME /usr/local/tomcat 
-ENV GEOSERVER_VERSION  2.18.0 
+ENV GEOSERVER_VERSION  2.18.5 
 ENV GEOSERVER_MAJOR_VERSION 2.18
 ENV INITIAL_MEMORY 8G
 ENV MAXIMUM_MEMORY 16G
 ENV GEOSERVER_WAR_URL  http://downloads.sourceforge.net/project/geoserver/GeoServer/${GEOSERVER_VERSION}/geoserver-${GEOSERVER_VERSION}-war.zip 
 ENV GEOSERVER_EXT_URL https://sourceforge.net/projects/geoserver/files/GeoServer/${GEOSERVER_VERSION}/extensions 
-ENV GEOSERVER_COMM_EXT_URL https://build.geoserver.org/geoserver/${GEOSERVER_MAJOR_VERSION}.x/community-latest
+ENV GEOSERVER_COMM_EXT_URL https://build.geoserver.org/geoserver/${GEOSERVER_MAJOR_VERSION}.x/ext-latest
 ENV GEOSERVER_DIR  ${CATALINA_HOME}/webapps/geoserver
 ENV GEOSERVER_EXT_DIR  ${GEOSERVER_DIR}/WEB-INF/lib 
 ENV GEOSERVER_DATA_DIR /opt/geoserver/data_dir
@@ -36,7 +36,7 @@ RUN apk update \
         wget -q $GEOSERVER_EXT_URL/geoserver-${GEOSERVER_VERSION}-${ext}-plugin.zip ; \
         unzip -qo -d ${GEOSERVER_EXT_DIR} geoserver-${GEOSERVER_VERSION}-${ext}-plugin.zip ; \
      done \
-  && for comm_ext in jms-cluster ncwms ; \
+  && for comm_ext in jms-cluster ncwms cog ; \
      do \
          wget -q "${GEOSERVER_COMM_EXT_URL}/geoserver-${GEOSERVER_MAJOR_VERSION}-SNAPSHOT-${comm_ext}-plugin.zip" ; \
          unzip -qo -d ${GEOSERVER_EXT_DIR} geoserver-${GEOSERVER_MAJOR_VERSION}-SNAPSHOT-${comm_ext}-plugin.zip ; \

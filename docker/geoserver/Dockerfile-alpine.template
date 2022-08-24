@@ -36,7 +36,7 @@ RUN apk update \
         wget -q $GEOSERVER_EXT_URL/geoserver-${GEOSERVER_VERSION}-${ext}-plugin.zip ; \
         unzip -qo -d ${GEOSERVER_EXT_DIR} geoserver-${GEOSERVER_VERSION}-${ext}-plugin.zip ; \
      done \
-  && for comm_ext in jms-cluster ncwms ; \
+  && for comm_ext in jms-cluster ncwms s3-geotiff ; \
      do \
          wget -q "${GEOSERVER_COMM_EXT_URL}/geoserver-${GEOSERVER_MAJOR_VERSION}-SNAPSHOT-${comm_ext}-plugin.zip" ; \
          unzip -qo -d ${GEOSERVER_EXT_DIR} geoserver-${GEOSERVER_MAJOR_VERSION}-SNAPSHOT-${comm_ext}-plugin.zip ; \
