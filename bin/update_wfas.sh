@@ -25,6 +25,21 @@ function remove_files_from_mosaic {
 		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${encoded}/index/granules.xml"
 	done
 }
+
+function download_data {
+   for d in `seq 0 6`
+   do
+      #check that remote file exists
+      if curl -s -I ${REMOTE_ADDR}/${1}_day${d}${EXT[${counter}]}.tif; then 
+         wget -q -N ${REMOTE_ADDR}/${1}_day${d}${EXT[${counter}]}.tif \
+            -P ${WFAS_DIR}/${1} ;
+	 modified=`stat ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif |grep Modify|cut -d ' ' -f 2`
+         date=`date +'%Y%m%d' -d "${modified} +"${d}" days"`
+	 mv ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif \
+		 ${WFAS_DIR}/${1}/${1}_${date}.tif
+      fi
+   done
+}
 counter=0
 for v in ${VARS[@]}
 do 
@@ -32,20 +47,11 @@ do
    if [[ ! -e $WFAS_DIR/${v} ]]; then
       mkdir -p $WFAS_DIR/${v}/tif
    fi
-
    
-   for d in `seq 0 6`
-   do
-      if curl -s -I ${REMOTE_ADDR}/${v}_day${d}${EXT[${counter}]}.tif; then #check that remote file exists
-         wget -q -N ${REMOTE_ADDR}/${v}_day${d}${EXT[${counter}]}.tif \
-            -P ${WFAS_DIR}/${v}/ ;
-	 modified=`stat ${WFAS_DIR}/${v}/${v}_day${d}${EXT[${counter}]}.tif |grep Modify|cut -d ' ' -f 2`
-         date=`date +'%Y%m%d' -d "${modified} +"${d}" days"`
-	 mv ${WFAS_DIR}/${v}/${v}_day${d}${EXT[${counter}]}.tif ${WFAS_DIR}/${v}/${v}_${date}.tif
+   rm $WFAS_DIR/${v}/*.tif
 
-
-      fi
-   done
+   download_data ${v}
+ 
    new_files=`ls ${WFAS_DIR}/${v}/${v}_*.tif|wc -l`
    if [ ${new_files} = 7 ]; then
 	echo "New files: ${new_files}"
@@ -53,6 +59,9 @@ do
    	#remove geotiffs from previous forecast:
    	rm ${WFAS_DIR}/${v}/tif/*.tif*
 	mv ${WFAS_DIR}/${v}/${v}_*.tif ${WFAS_DIR}/${v}/tif/.
+	#build new .vrt file:
+	gdalbuildvrt -separate -o ${WFAS_DIR}/${v}/${v}.vrt \
+		${WFAS_DIR}/${v}/tif/*.tif
   	#now reindex the mosaic:  
    	for file in `ls ${WFAS_DIR}/${v}/tif/*.tif`
    		do

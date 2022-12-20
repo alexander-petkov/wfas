@@ -22,7 +22,9 @@ ELEV_FILE=${RTMA_DIR}/rtma_dem_ak.tif
 
 function derive_rhm {
    gdal_calc.py --quiet --format=GTiff --type Int16 \
-      --co=PROFILE=GeoTIFF --co=COMPRESS=DEFLATE --co=TILED=YES --co=NUM_THREADS=ALL_CPUS \
+      --co=PROFILE=GeoTIFF --co=COMPRESS=DEFLATE --co=TILED=YES \
+      --co=BLOCKXSIZE=128 --co=BLOCKYSIZE=128 \
+      --co=NUM_THREADS=ALL_CPUS \
       --calc='(exp(1.81+(A*17.27- 4717.31) / (A - 35.86))/exp(1.81+(B*17.27- 4717.31) / (B - 35.86)))*100' \
       --outfile=${2} \
       -A ${1} --A_band=4 -B ${1} --B_band=3

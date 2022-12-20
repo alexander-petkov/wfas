@@ -118,13 +118,15 @@ function compute_solar {
       day=${filename:6:2}
       month=${filename:4:2}
       year=${filename:0:4}
-      solar_grid --cloud-file ${cloud_file} \
+      if [ ! -s "${GFS_DIR}/${1}/tif/${filename}.tif" ]; then
+      	solar_grid --cloud-file ${cloud_file} \
 	      --num-threads 6 --day ${day} --month ${month} \
 	      --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
 	      ${ELEV_FILE} ${GFS_DIR}/${1}/${filename}.asc
-      gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
+      	gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
 	      ${GFS_DIR}/${1}/${filename}.asc ${GFS_DIR}/${1}/${filename}.tif
-      rm ${GFS_DIR}/${1}/${filename}.{asc,prj}
+      	rm ${GFS_DIR}/${1}/${filename}.{asc,prj}
+      fi
    done
 }
 

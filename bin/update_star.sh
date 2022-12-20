@@ -6,10 +6,10 @@ source ${DIR}/globals.env
 
 WORKSPACE="star"
 STAR_DIR=${DATA_DIR}/star
-STAR_FTP='ftp://ftp.star.nesdis.noaa.gov/pub/corp/scsb/wguo/data/Blended_VH_4km/geo_TIFF'
+STAR_FTP='https://www.star.nesdis.noaa.gov/pub/corp/scsb/wguo/data/Blended_VH_4km/geo_TIFF/'
 DATASETS=('SMN')
 # get data in YYYYWWW format:
-DATE=`date -d "-1 week" +%Y0%W`
+#DATE=`date -d "-1 week" +%Y0%W`
 DATE=`date +%Y0%W`
 PATTERNS=("VHP.G04.C07.npp.P${DATE}.SM.SMN.tif")
 counter=0
@@ -46,7 +46,7 @@ do
            curl -u admin:geoserver -XPOST \
 		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/${PATTERNS[${counter}]}.new \
 	       	"${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic"
-   fi 
+   fi
    (( counter++ ))
 done
 

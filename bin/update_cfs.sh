@@ -14,9 +14,11 @@ FUNCTION=('' 'derive_rh' '' '' 'derive_wdir' 'derive_wspd' '')
 
 
 #CFS setup:
-latest_forecast=`curl -s --list-only https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod/cfs/|grep -oP '(?<=">)cfs.*(?=/</a>)'|sort|tail -n1`
+CFS_URL="https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod"
+latest_forecast=`curl -s --list-only ${CFS_URL}/|grep -oP '(?<=">)cfs.*(?=/</a>)'|sort|tail -n1`
 FORECAST=`echo ${latest_forecast} | cut -d '.' -f 2`
-CFS_URL="https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod/cfs/${latest_forecast}/00/6hrly_grib_01/"
+echo ${FORECAST} ${latest_forecast}
+FORECAST_URL="${CFS_URL}/${latest_forecast}/00/6hrly_grib_01/"
 CFS_DIR="${DATA_DIR}/cfs"
 #END CFS Setup
 
@@ -101,11 +103,11 @@ function process_data {
    for d in `printf "%s\n" "${DATASETS[@]}" | sort -u`
    do 
       #get a list of files from remote server:
-      REMOTE_FILES=`curl -s --list-only "${CFS_URL}" |grep  -oP '(?<=href=")'${d}'.*.grb2(?=")'|sort|head -n 56`
+      REMOTE_FILES=`curl -s --list-only "${FORECAST_URL}" |grep  -oP '(?<=href=")'${d}'.*.grb2(?=")'|sort|head -n 56`
       #REMOTE_FILES=(`ls ${CFS_DIR}/*.grb2`)
       for r in ${REMOTE_FILES[@]}
       do
-	      wget -q "${CFS_URL}/${r}" -O ${CFS_DIR}/${r}
+	      wget -q "${FORECAST_URL}/${r}" -O ${CFS_DIR}/${r}
 	      make_geotiffs ${CFS_DIR}/${r}
       done
    done

@@ -22,7 +22,9 @@ ELEV_FILE=${RTMA_DIR}/rtma_dem.tif
 
 function derive_rhm {
    gdal_calc.py --quiet --format=GTiff --type Int16 \
-      --co=PROFILE=GeoTIFF --co=COMPRESS=DEFLATE --co=TILED=YES --co=NUM_THREADS=ALL_CPUS \
+      --co=PROFILE=GeoTIFF --co=COMPRESS=DEFLATE --co=TILED=YES\
+      --co=BLOCKXSIZE=128 --co=BLOCKYSIZE=128 \
+      --co=NUM_THREADS=ALL_CPUS \
       --calc='(exp(1.81+(A*17.27- 4717.31) / (A - 35.86))/exp(1.81+(B*17.27- 4717.31) / (B - 35.86)))*100' \
       --outfile=${2} \
       -A ${1} --A_band=4 -B ${1} --B_band=3
@@ -216,3 +218,7 @@ do
    #Remove empty directories:
    find ${FILE_DIR}/grb -empty -type d -name 'rtma2p5.*' -delete
 done
+
+#export the last complete 24-hour periodstarting from 00:00 as a NetCDF package:
+starttime=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT to_char(time-interval '29 hours','YYYY-MM-DD HH24:MI:SSZ') from rtma.\"Temperature\" order by time desc limit 1;"|sed -e 's/ /T/'`
+/mnt/cephfs/wfas/bin/netcdf_package_export.sh archive=${WORKSPACE} starttime="${starttime}"

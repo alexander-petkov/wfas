@@ -8,11 +8,11 @@ WORKSPACE="firms"
 FIRMS_DIR=${DATA_DIR}/firms
 SHAPEFILES=(
 	#MODIS Aqua and Terra satellites:
-	'https://firms2.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/shapes/zips/MODIS_C6_1_Global_24h.zip'
+	#'https://firms2.modaps.eosdis.nasa.gov/data/active_fire/modis-c6.1/shapes/zips/MODIS_C6_1_Global_24h.zip'
 	#SUOMI satellite:
 	'https://firms2.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/shapes/zips/SUOMI_VIIRS_C2_Global_24h.zip'
 	#NOAA-20 satellite:
-	'https://firms2.modaps.eosdis.nasa.gov/data/active_fire/noaa-20-viirs-c2/shapes/zips/J1_VIIRS_C2_Global_24h.zip'
+	#'https://firms2.modaps.eosdis.nasa.gov/data/active_fire/noaa-20-viirs-c2/shapes/zips/J1_VIIRS_C2_Global_24h.zip'
 	)   
 for s in ${SHAPEFILES[@]}
 do 
@@ -27,10 +27,10 @@ do
    ogr2ogr -f PostgreSQL \
 	   -a_srs EPSG:4326 \
 	   PG:"host=localhost user=docker password=docker dbname=wfas schemas=firms port=7777" \
-	   ${FIRMS_DIR}/${name}.shp ${name}
-   
+	   ${FIRMS_DIR}/${name}.shp ${name} 
    psql -q -h localhost -p7777 -Udocker wfas -c "INSERT into firms.${accum_tblname} SELECT * from firms.${tblname} where to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')>(select max(to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')) from firms.${accum_tblname})"
    psql -q -h localhost -p7777 -Udocker wfas -c "DELETE from firms.${accum_tblname} where to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')<(now() - interval '2 weeks')"
+   psql -q -h localhost -p7777 -Udocker wfas -c "UPDATE firms.${accum_tblname} set datetime=to_timestamp (acq_date || ' ' || acq_time,'YYYY-MM-DD HH24MI') where datetime is null"
    psql -q -h localhost -p7777 -Udocker wfas -c "REINDEX table firms.${accum_tblname}"
    psql -q -h localhost -p7777 -Udocker wfas -c "DELETE from firms.${tblname}"
 done

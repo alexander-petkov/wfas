@@ -14,10 +14,10 @@ DATA_TYPE=('Float32' 'Int16' 'Int16' 'Int16' 'Int16' 'Float32' 'Int16')
 GRIB_FILTERS=('shortName=tp,lengthOfTimeRange:=1,productDefinitionTemplateNumber=8' \
 	'shortName=2r' 'shortName=tcc' 'shortName=2t' 'shortName=10wdir' \
 	'shortName=10si,productDefinitionTemplateNumber=0' 'shortName=dswrf')
-REMOTE_URL='ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/blend/prod'
+REMOTE_URL='https://ftp.ncep.noaa.gov/data/nccf/com/blend/prod'
 
 #get latest forecast run:
-FORECAST=`curl -s -l ${REMOTE_URL}/|cut -d '"' -f 2|cut -d '/' -f 1|tail -n 1`
+FORECAST=`curl -s -l ${REMOTE_URL}/|grep blend|tail -n 1|grep -oP '(?<=>).*?(?=/)'`
 
 #GDAL exports:
 PROJ4_SRS='+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +a=6371200 +b=6371200 +units=m +no_defs'
@@ -33,7 +33,6 @@ function remove_files_from_mosaic {
 		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml"
 	done
 }
-
 #make a directory for this forecast run:
 mkdir -p ${NBM_DIR}/${FORECAST}
 #now for each variable:
