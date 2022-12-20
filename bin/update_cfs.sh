@@ -17,7 +17,6 @@ FUNCTION=('' 'derive_rh' '' '' 'derive_wdir' 'derive_wspd' '')
 CFS_URL="https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod"
 latest_forecast=`curl -s --list-only ${CFS_URL}/|grep -oP '(?<=">)cfs.*(?=/</a>)'|sort|tail -n1`
 FORECAST=`echo ${latest_forecast} | cut -d '.' -f 2`
-echo ${FORECAST} ${latest_forecast}
 FORECAST_URL="${CFS_URL}/${latest_forecast}/00/6hrly_grib_01/"
 CFS_DIR="${DATA_DIR}/cfs"
 #END CFS Setup
