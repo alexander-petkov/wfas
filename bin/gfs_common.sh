@@ -175,11 +175,14 @@ function download_data {
 	       #rewrite the grid from 0-360 to -180 180 lon range:
                cdo -s -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
 		   ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
-               t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
-               date=`date -d ${t} +'%Y%m%d%H%M'` 
-               gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
-		  -a_srs wgs84 -b 1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
-		  ${FILE_DIR}/${date}.tif
+	       #no need to make tifs for UGRD or VGRD:
+	       if  [ ${d} != 'UGRD' || ${d} != 'VGRD' ]; then
+                  t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
+                  date=`date -d ${t} +'%Y%m%d%H%M'` 
+                  gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
+		     -a_srs wgs84 -b 1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
+		     ${FILE_DIR}/${date}.tif
+	       fi
 	   fi
 	   sleep 1
          done
