@@ -50,12 +50,12 @@ function compute_solar {
 
 function remove_file_from_mosaic {
    #Get a list of coverages for this mosaic:
-   COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${1}/coverages.xml \
+   COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${1}/coverages.xml \
                |grep -oP '(?<=<name>).*?(?=</name>)'`)
    for c in ${COVERAGES[@]}
    do
       #delete the granule:
-      curl -s -u admin:geoserver -XDELETE \
+      curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/rtma_${1}/coverages/${c}/index/granules.xml?filter=location='${2}'"
    done
 }
@@ -63,9 +63,9 @@ function remove_file_from_mosaic {
 function download_varanl {
    for file in ${REMOTE_FILES[@]}
    do
-      indexed=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT 1 from rtma.varanl_granules where granule='${file}'"`;
+      indexed=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT 1 from rtma.varanl_granules where granule='${file}'"`;
       if [ "${indexed}" != "1" ]; then 
-      	ogrinfo PG:"host=localhost user=docker password=docker dbname=wfas port=7777" \
+      	ogrinfo -q PG:"host=${PG_HOST} user=docker password=docker dbname=wfas port=${PG_PORT}" \
 		-sql "INSERT into rtma.varanl_granules values('${file}')"
       	wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=${1} -N  --no-parent \
          -A${PATTERNS[counter]} \
@@ -87,9 +87,9 @@ function download_pcp {
    for file in ${PCP_FILES[@]}
    do
 	
-      indexed=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT 1 from rtma.pcp_granules where granule='${file}'"`;
+      indexed=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT 1 from rtma.pcp_granules where granule='${file}'"`;
       if [ "${indexed}" != "1" ]; then 
-      	ogrinfo PG:"host=localhost user=docker password=docker dbname=wfas port=7777" \
+      	ogrinfo -q PG:"host=${PG_HOST} user=docker password=docker dbname=wfas port=${PG_PORT}" \
 		-sql "INSERT into rtma.pcp_granules values('${file}')"
       	wget -q --cut-dirs 6 -xnH -c --directory-prefix=${1} -N  --no-parent \
    	   ${RTMA_FTP}/${file}
@@ -100,7 +100,7 @@ function download_pcp {
 #Build a list of files on the ftp server:
 for d in `curl -s --list-only ${RTMA_FTP}/|grep 'rtma2p5\.'|sort` #a list of directories from ftp
 do 
-	for f in `curl -s --list-only ${RTMA_FTP}/${d}/ | grep 'varanl_ndfd'|sort` #list varanl files in each directory
+	for f in `curl -s --list-only ${RTMA_FTP}/${d}/ | grep 'varanl_ndfd.grb2_wexp$'|sort` #list varanl files in each directory
 	do 
 		REMOTE_FILES+=(`echo ${d}/${f}`) #add element to array
 	done
@@ -119,27 +119,6 @@ do
       download_${d} $FILE_DIR/grb
    fi
    
-   #Sorted list of locally stored Grib files:
-   LOCAL_FILES=(`find ${FILE_DIR}/grb -name '*'${PATTERNS[counter]}'*' |cut -d '/' -f 9-|sort`)
-   LOCAL_FILES=(`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT granule from rtma.${d}_granules order by granule asc"`)
-   if [ ${d} = 'pcp' ] ; then
-	#rewrite pcp file name to a coresponding time step varanl name,
-	#so we keep pcp archive aligned with varanl in time
-	LOCAL_FILES=(`printf '%s\n' "${LOCAL_FILES[@]}"| \
-		awk '{print substr($0,1,17) substr($0,18,7) ".t" substr($0,34,2) "z.2dvaranl_ndfd.grb2_wexp"}'`)
-   fi 
-   TO_DELETE=(`echo ${LOCAL_FILES[@]} ${REMOTE_FILES[@]} ${REMOTE_FILES[@]} \
-	   | tr ' ' '\n' | sort | uniq -u`)
-   for i in ${TO_DELETE[@]}
-   do 
-      if [ ${d} = 'pcp' ] ; then
-	      #rewrite back to pcp file name:
-	      i=`echo ${i}|awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp.184.grb2"}'`
-      fi
-      #remove old granule from index:
-      psql -A -t -h localhost -p7777 -Udocker wfas -c "DELETE from rtma.${d}_granules where granule='${i}'"
-      find $FILE_DIR/grb -path '*'${i} -delete
-   done
    (( counter++ ))
 done
 
@@ -171,22 +150,22 @@ do
 	fi
 	find ${FILE_DIR}/tif/${var} -name '*.aux.xml' -delete
 	#add new file to mosaic:
-	curl -u admin:geoserver -XPOST \
+	curl -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST \
 		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/tif/${var}/${f} \
 	       	"${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/external.imagemosaic"
       fi
    done
    
    #Get a list of coverages for this mosaic:
-   COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages.xml \
+   COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages.xml \
 		|grep -oP '(?<=<name>).*?(?=</name>)'`)
    #Sorted list of Mosaic granules:
-   MOSAIC_FILES=`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages/${COVERAGES[0]}/index/granules.xml |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`
+   MOSAIC_FILES=`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages/${COVERAGES[0]}/index/granules.xml |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`
 
    for i in ${MOSAIC_FILES[@]}
    do
       f=`echo ${i}|cut -d '/' -f 10-` #get last two tokens, containing dir and file name
-      indexed=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT 1 from rtma.${dataset}_granules where granule='${f}'"`;
+      indexed=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT 1 from rtma.${dataset}_granules where granule='${f}'"`;
       if [ "${indexed}" != "1" ]; then 
       #if [ ! -f ${FILE_DIR}/grb/${f} ]; then
 	#remove from mosaic
@@ -198,7 +177,7 @@ do
    #remove residual tif granules, if any:
    for f in `find ${FILE_DIR}/tif/${var} -path '*rtma*_wexp' -type f|rev|cut -d '/' -f 1,2|rev`
    do 
-      indexed=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT 1 from rtma.varanl_granules where granule='${f}'"`;
+      indexed=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT 1 from rtma.varanl_granules where granule='${f}'"`;
       if [ "${indexed}" != "1" ]; then 
 	   #if [ ! -f  ${FILE_DIR}/grb/$f ] ; then 
 	   rm ${FILE_DIR}/tif/${var}/${f} 
@@ -220,5 +199,5 @@ do
 done
 
 #export the last complete 24-hour periodstarting from 00:00 as a NetCDF package:
-starttime=`psql -A -t -h localhost -p7777 -Udocker wfas -c "SELECT to_char(time-interval '29 hours','YYYY-MM-DD HH24:MI:SSZ') from rtma.\"Temperature\" order by time desc limit 1;"|sed -e 's/ /T/'`
-/mnt/cephfs/wfas/bin/netcdf_package_export.sh archive=${WORKSPACE} starttime="${starttime}"
+starttime=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT to_char(time-interval '29 hours','YYYY-MM-DD HH24:MI:SSZ') from rtma.\"Temperature\" order by time desc limit 1;"|sed -e 's/ /T/'`
+#/mnt/cephfs/wfas/bin/netcdf_package_export.sh archive=${WORKSPACE} starttime="${starttime}"
