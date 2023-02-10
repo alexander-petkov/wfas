@@ -74,7 +74,7 @@ function derive_rh {
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
-	COVERAGES=(`curl -s -u admin:geoserver -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
+	COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for cv in ${COVERAGES[@]}
 	do
@@ -84,12 +84,12 @@ function remove_files_from_mosaic {
 	   FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST\``
 	   SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST\`-'6 weeks'`
 	   filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GTE%20'${FORECAST_START}')"
-	   TO_REMOVE=(`curl -s -u admin:geoserver -XGET \
+	   TO_REMOVE=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET \
 		   "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${cv}/index/granules.xml?filter=${filter}" \
 		   |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
 	   for g in ${TO_REMOVE[@]}
 	   do
-	   	curl -s -u admin:geoserver -XDELETE \
+	   	curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 			"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${cv}/index/granules.xml?filter=location='${g}'"
 		rm -f ${g} ${g}.xml
 	   done
@@ -152,7 +152,7 @@ function update_geoserver {
       mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
       #3.Re-index mosaic:
       find ${FILE_DIR}/tif -name '*.tif' \
-	   -exec curl -s -u admin:geoserver -H "Content-type: text/plain" \
+	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" \
 	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${c}/external.imagemosaic" \;
    done
 }

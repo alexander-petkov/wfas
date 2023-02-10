@@ -65,12 +65,12 @@ function remove_old_geotiffs {
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
-	COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages.xml \
+	COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages.xml \
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for c in ${COVERAGES[@]}
 	do
 	   #delete all granules:
-	   curl -s -u admin:geoserver -XDELETE \
+	   curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages/${c}/index/granules.xml"
 	done
 }
@@ -104,7 +104,7 @@ do
    #now reindex the mosaic:  
    for file in `ls ${NDFD_DIR}/${v}/tif/*.tif`
    do
-	curl -s -u admin:geoserver -XPOST -H "Content-type: text/plain" \
+	curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST -H "Content-type: text/plain" \
 		-d "file://${file}" \
 		"${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${v}/external.imagemosaic" ;       
    done

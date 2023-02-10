@@ -143,13 +143,13 @@ function derive_wspd {
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
-	COVERAGES=(`curl -s -u admin:geoserver -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
+	COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for c in ${COVERAGES[@]}
 	do
 	   #delete all granules:
 	   echo ${c}
-	   curl -s -u admin:geoserver -XDELETE \
+	   curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml"
 	done
 }
@@ -189,7 +189,7 @@ do
 #2. Move new granules in place:
    mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
 #3.Re-index mosaic:
-   find ${FILE_DIR}/tif -name '*.tif' -type f -exec curl -s -u admin:geoserver -H "Content-type: text/plain" -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" \;
+   find ${FILE_DIR}/tif -name '*.tif' -type f -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" \;
 done
    
 rm ${GMAO_DIR}/*.nc4 ;

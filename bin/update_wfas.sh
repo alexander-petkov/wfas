@@ -15,13 +15,13 @@ EXT=('_perc_new' '_perc_new' '_new' '')
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
-	IFS=$'\n' COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml \
+	IFS=$'\n' COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml \
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for c in ${COVERAGES[@]}
 	do
 	   encoded=$(python -c "from urllib.parse import quote; print(quote('''$c'''))")
 	   #delete all granules:
-	   curl -s -u admin:geoserver -XDELETE \
+	   curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${encoded}/index/granules.xml"
 	done
 }
@@ -35,8 +35,9 @@ function download_data {
             -P ${WFAS_DIR}/${1} ;
 	 modified=`stat ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif |grep Modify|cut -d ' ' -f 2`
          date=`date +'%Y%m%d' -d "${modified} +"${d}" days"`
-	 mv ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif \
+	 gdalwarp -t_srs EPSG:4326 ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif \
 		 ${WFAS_DIR}/${1}/${1}_${date}.tif
+	 rm ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif
       fi
    done
 }
@@ -65,7 +66,7 @@ do
   	#now reindex the mosaic:  
    	for file in `ls ${WFAS_DIR}/${v}/tif/*.tif`
    		do
-		curl -s -u admin:geoserver -XPOST -H "Content-type: text/plain" \
+		curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST -H "Content-type: text/plain" \
 			-d "file://${file}" \
 			"${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" ;       
   	 done

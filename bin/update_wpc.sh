@@ -17,14 +17,14 @@ PROJ4_SRS='+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +a=6
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
-	IFS=$'\n' COVERAGES=(`curl -s -u admin:geoserver -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
+	IFS=$'\n' COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 
 	for c in ${COVERAGES[@]}
 	do
 	   #delete all granules:
 	   encoded=$(python -c "from urllib.parse import quote; print(quote('''$c'''))")
-	   curl -s -u admin:geoserver -XDELETE \
+	   curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${encoded}/index/granules.xml"
 	done
 }
@@ -68,6 +68,6 @@ do
    mv ${QPF_DIR}/*.tif  -t ${QPF_DIR}/tif/
    #3.Re-index mosaic:
    find ${QPF_DIR}/tif/ -name '*.tif' -exec \
-      curl -s -u admin:geoserver -H "Content-type: text/plain" -d "file://"{}  \
+      curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" -d "file://"{}  \
          "${REST_URL}/${WORKSPACE}/coveragestores/qpf${a}/external.imagemosaic" \;
 done 

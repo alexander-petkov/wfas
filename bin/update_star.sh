@@ -43,7 +43,7 @@ do
 	   rm ${FILE_DIR}/${PATTERNS[${counter}]}
 	   #add file to mosaic:
 	   echo ${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic
-           curl -u admin:geoserver -XPOST \
+           curl -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST \
 		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/${PATTERNS[${counter}]}.new \
 	       	"${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic"
    fi

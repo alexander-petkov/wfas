@@ -10,6 +10,12 @@ DERIVED=(0 0 1 0 1 0 1 1 1) #is the dataset downloaded, or derived from other va
 FUNCTION=('' '' 'derive_apcp' '' 'derive_tcdc' '' 'derive_wdir' 'derive_wspd' 'compute_solar') 
 LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' 'surface')
 
+DATASETS=('SOLAR') 
+COVERAGES=('SOLAR') 
+DERIVED=(1) #is the dataset downloaded, or derived from other variables?
+FUNCTION=('compute_solar') 
+LEVEL=('entire_atmosphere')
+
 #NOMADS setup:
 RES='0p25' #quarter-degree resolution
 NOMADS_URL="https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_${RES}_1hr.pl"
@@ -109,8 +115,10 @@ function derive_tcdc {
       sleep 1
    done
 }
+
 function compute_solar {
-   for cloud_file in ${GFS_DIR}/TCDC/*.tif
+   cloud_files=(`find ${GFS_DIR}/TCDC -name '20*.tif'`)
+   for cloud_file in ${cloud_files[@]}
    do
       filename=$(basename ${cloud_file} .tif)
       minute=${filename: -2}
@@ -126,13 +134,16 @@ function compute_solar {
       	gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
 	      ${GFS_DIR}/${1}/${filename}.asc ${GFS_DIR}/${1}/${filename}.tif
       	rm ${GFS_DIR}/${1}/${filename}.{asc,prj}
+	ls ${GFS_DIR}/${1}/${filename}.tif
       fi
    done
+   solar_files=(`find ${GFS_DIR}/SOLAR -name '20*.tif'`)
+   echo "Solar files: ${#solar_files[@]}"
 }
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
-	COVERAGES=(`curl -s -u admin:geoserver -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
+	COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for c in ${COVERAGES[@]}
 	do
@@ -142,12 +153,13 @@ function remove_files_from_mosaic {
 	   FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST|cut -d '.' -f 2\`+'2 hours'`
 	   SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST|cut -d '.' -f 2\`-'6 weeks'`
 	   filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GT%20'${FORECAST_START}')"
-	   TO_REMOVE=(`curl -s -u admin:geoserver -XGET \
+	   TO_REMOVE=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET \
 		   "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml?filter=${filter}" \
 		   |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
 	   for g in ${TO_REMOVE[@]}
 	   do
-	   	curl -s -u admin:geoserver -XDELETE \
+		echo "Removing ${g}"
+	   	curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 			"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml?filter=location='${g}'"
 		rm -f ${g} ${g}.xml
 	   done
@@ -176,7 +188,7 @@ function download_data {
                cdo -s -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
 		   ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
 	       #no need to make tifs for UGRD or VGRD:
-	       if  [ ${d} != 'UGRD' || ${d} != 'VGRD' ]; then
+	       if  [ ${d} != 'UGRD' ] && [ ${d} != 'VGRD' ]; then
                   t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
                   date=`date -d ${t} +'%Y%m%d%H%M'` 
                   gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
@@ -204,17 +216,22 @@ do
 #1. Clear old granules from Geoserver's catalog and file system:
    #GFS files local storage locations:
    FILE_DIR=${GFS_DIR}/${d}
+   echo "Before removing granules:" `find ${FILE_DIR} -name '*.tif'  |wc -l`
    #remove granules from mosaic catalog:
    remove_files_from_mosaic ${d}
+   echo "After removing granules:" `find ${FILE_DIR} -name '*.tif'  |wc -l`
+   echo "New granules: " `ls ${FILE_DIR}/*.tif  |wc -l`
    #remove old granules from system:
    find ${FILE_DIR} -empty -type f -delete ;
    rm ${FILE_DIR}/*.tmp ;
    rm ${FILE_DIR}/*.nc ;
 #2. Move new granules in place:
    mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
+   echo "After moving new granules in place:" `find ${FILE_DIR} -name '*.tif'  |wc -l`
+   #remove old granules from system:
 #3.Re-index mosaic:
    find ${GFS_DIR}/${d}/tif -name '*.tif' \
-	   -exec curl -s -u admin:geoserver -H "Content-type: text/plain" \
+	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" \
 	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic" \;
 done
 }

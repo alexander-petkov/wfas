@@ -51,12 +51,12 @@ function compute_solar {
 
 function remove_file_from_mosaic {
    #Get a list of coverages for this mosaic:
-   COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${1}/coverages.xml \
+   COVERAGES=(`curl -s -u ${GEOSERVER__USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${1}/coverages.xml \
                |grep -oP '(?<=<name>).*?(?=</name>)'`)
    for c in ${COVERAGES[@]}
    do
       #delete the granule:
-      curl -s -u admin:geoserver -XDELETE \
+      curl -s -u ${GEOSERVER__USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/rtma_${1}/coverages/${c}/index/granules.xml?filter=location='${2}'"
    done
 }
@@ -162,16 +162,16 @@ do
 	#add new file to mosaic:
       fi
 	echo "add new file to mosaic:"
-	curl -s -u admin:geoserver -XPOST \
+	curl -s -u ${GEOSERVER__USERNAME}:${GEOSERVER_PASSWORD} -XPOST \
 		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/tif/${var}/${f} \
 	       	"${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/external.imagemosaic"
    done
 
    #Get a list of coverages for this mosaic:
-   COVERAGES=(`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages.xml \
+   COVERAGES=(`curl -s -u ${GEOSERVER__USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages.xml \
 		|grep -oP '(?<=<name>).*?(?=</name>)'`)
    #Sorted list of Mosaic granules:
-   MOSAIC_FILES=`curl -s -u admin:geoserver -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages/${COVERAGES[0]}/index/granules.xml |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`
+   MOSAIC_FILES=`curl -s -u ${GEOSERVER__USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/rtma_${var}/coverages/${COVERAGES[0]}/index/granules.xml |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`
 
    for i in ${MOSAIC_FILES[@]}
    do
