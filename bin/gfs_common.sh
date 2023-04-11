@@ -10,11 +10,11 @@ DERIVED=(0 0 1 0 1 0 1 1 1) #is the dataset downloaded, or derived from other va
 FUNCTION=('' '' 'derive_apcp' '' 'derive_tcdc' '' 'derive_wdir' 'derive_wspd' 'compute_solar') 
 LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' 'surface')
 
-DATASETS=('SOLAR') 
-COVERAGES=('SOLAR') 
-DERIVED=(1) #is the dataset downloaded, or derived from other variables?
-FUNCTION=('compute_solar') 
-LEVEL=('entire_atmosphere')
+DATASETS=('TCDC' 'SOLAR') 
+COVERAGES=('TCDC' 'SOLAR') 
+DERIVED=(1 1) #is the dataset downloaded, or derived from other variables?
+FUNCTION=('derive_tcdc' 'compute_solar') 
+LEVEL=('entire_atmosphere' 'entire_atmosphere')
 
 #NOMADS setup:
 RES='0p25' #quarter-degree resolution
@@ -108,7 +108,7 @@ function derive_tcdc {
             ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
 	  t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/TCDC/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
 	  date=`date  -d $t +'%Y%m%d%H%M'`
-          gdal_translate -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
+          gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
 	     NETCDF:"${GFS_DIR}/TCDC/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc":tcc_2 \
 	     ${GFS_DIR}/TCDC/${date}.tif
       fi
@@ -121,12 +121,13 @@ function compute_solar {
    for cloud_file in ${cloud_files[@]}
    do
       filename=$(basename ${cloud_file} .tif)
-      minute=${filename: -2}
-      hour=${filename:8:2}
-      day=${filename:6:2}
-      month=${filename:4:2}
-      year=${filename:0:4}
-      if [ ! -s "${GFS_DIR}/${1}/tif/${filename}.tif" ]; then
+      if [[ ! -s "${GFS_DIR}/${1}/tif/${filename}.tif" ]] ||
+         [[ ${cloud_file} -nt "${GFS_DIR}/${1}/tif/${filename}.tif" ]]; then
+      	minute=${filename: -2}
+      	hour=${filename:8:2}
+      	day=${filename:6:2}
+      	month=${filename:4:2}
+      	year=${filename:0:4}
       	solar_grid --cloud-file ${cloud_file} \
 	      --num-threads 6 --day ${day} --month ${month} \
 	      --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
@@ -134,11 +135,8 @@ function compute_solar {
       	gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
 	      ${GFS_DIR}/${1}/${filename}.asc ${GFS_DIR}/${1}/${filename}.tif
       	rm ${GFS_DIR}/${1}/${filename}.{asc,prj}
-	ls ${GFS_DIR}/${1}/${filename}.tif
       fi
    done
-   solar_files=(`find ${GFS_DIR}/SOLAR -name '20*.tif'`)
-   echo "Solar files: ${#solar_files[@]}"
 }
 
 function remove_files_from_mosaic {
@@ -158,7 +156,6 @@ function remove_files_from_mosaic {
 		   |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
 	   for g in ${TO_REMOVE[@]}
 	   do
-		echo "Removing ${g}"
 	   	curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 			"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml?filter=location='${g}'"
 		rm -f ${g} ${g}.xml
@@ -216,18 +213,14 @@ do
 #1. Clear old granules from Geoserver's catalog and file system:
    #GFS files local storage locations:
    FILE_DIR=${GFS_DIR}/${d}
-   echo "Before removing granules:" `find ${FILE_DIR} -name '*.tif'  |wc -l`
    #remove granules from mosaic catalog:
    remove_files_from_mosaic ${d}
-   echo "After removing granules:" `find ${FILE_DIR} -name '*.tif'  |wc -l`
-   echo "New granules: " `ls ${FILE_DIR}/*.tif  |wc -l`
    #remove old granules from system:
    find ${FILE_DIR} -empty -type f -delete ;
    rm ${FILE_DIR}/*.tmp ;
    rm ${FILE_DIR}/*.nc ;
 #2. Move new granules in place:
    mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
-   echo "After moving new granules in place:" `find ${FILE_DIR} -name '*.tif'  |wc -l`
    #remove old granules from system:
 #3.Re-index mosaic:
    find ${GFS_DIR}/${d}/tif -name '*.tif' \
