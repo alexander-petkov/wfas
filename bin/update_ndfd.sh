@@ -110,3 +110,4 @@ do
    done
 done
 
+${MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd
