@@ -10,12 +10,6 @@ DERIVED=(0 0 1 0 1 0 1 1 1) #is the dataset downloaded, or derived from other va
 FUNCTION=('' '' 'derive_apcp' '' 'derive_tcdc' '' 'derive_wdir' 'derive_wspd' 'compute_solar') 
 LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' 'surface')
 
-DATASETS=('TCDC' 'SOLAR') 
-COVERAGES=('TCDC' 'SOLAR') 
-DERIVED=(1 1) #is the dataset downloaded, or derived from other variables?
-FUNCTION=('derive_tcdc' 'compute_solar') 
-LEVEL=('entire_atmosphere' 'entire_atmosphere')
-
 #NOMADS setup:
 RES='0p25' #quarter-degree resolution
 NOMADS_URL="https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_${RES}_1hr.pl"
@@ -158,7 +152,7 @@ function remove_files_from_mosaic {
 	   do
 	   	curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 			"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml?filter=location='${g}'"
-		rm -f ${g} ${g}.xml
+		rm -f ${g} ${g}.aux.xml
 	   done
 	done
 }
@@ -174,7 +168,7 @@ function download_data {
       #Unless we have a derived dataset, 
       #in which case we calculate it:
       #1. If dataset is not derived, get data
-      if [ ${DERIVED[$counter]} = 0 ]; then 
+      if [[ ${DERIVED[$counter]} = 0 ]]; then 
          for h in `seq -w 003 1 120 && seq 123 3 384`
          do 
             wget -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
@@ -195,7 +189,7 @@ function download_data {
 	   fi
 	   sleep 1
          done
-      elif [ ${DERIVED[$counter]} = 1 ]; then #derive dataset:
+      elif [[ ${DERIVED[$counter]} = 1 ]]; then #derive dataset:
          ${FUNCTION[counter]} ${d} #execute corresponding derive function
       fi
    
