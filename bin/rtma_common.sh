@@ -144,25 +144,26 @@ do
    FILE_DIR=${RTMA_DIR}/${EXTRACT_FROM[${counter}]}
    dataset=${EXTRACT_FROM[${counter}]}
    RETENTION_PERIOD_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`date +%Y-%m-%dT%H:%M:%SZ\`-"${RETENTION_PERIOD}"`
-   filter="(time%20LT%20'${RETENTION_PERIOD_START}}')"
+   filter="(time%20LT%20'${RETENTION_PERIOD_START}')"
    #Get a list of coverages for this mosaic, 
    #should be array with a single element:
    COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${var}/coverages.xml \
 		|grep -oP '(?<=<name>).*?(?=</name>)'`)
+   c="${COVERAGES[0]}"
    #Sorted list of Mosaic granules:
-   TO_DELETE=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${var}/coverages/${COVERAGES[0]}/index/granules.xml&filter=${filter}" |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
-
+   TO_DELETE=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${var}/coverages/${c}/index/granules.xml?filter=${filter}" |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
    for i in ${TO_DELETE[@]}
    do
       #get last two tokens, containing dir and file name:
       f=`echo ${i}|rev|cut -d '/' -f 1,2|rev` #get last two tokens, containing dir and file name
       #delete the granule from mosaic:
       curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
-		"${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${1}/coverages/${c}/index/granules.xml?filter=location='${2}'"
+		"${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${var}/coverages/${c}/index/granules.xml?filter=location='${i}'"
       psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "DELETE from ${WORKSPACE}.${dataset}_granules where granule='${f}'";
       #remove from file system
       rm -f ${i}
    done
+
    #Remove empty directories:
    find ${FILE_DIR}/tif/${var} -empty -type d -name "${FILE_PREFIX}.*" -delete
    (( counter++ ))
