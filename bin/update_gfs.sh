@@ -15,4 +15,4 @@ SUBREGION='subregion=&leftlon=-180&rightlon=180&toplat=90&bottomlat=-90'
 
 download_data
 update_geoserver
-
+exit 0
