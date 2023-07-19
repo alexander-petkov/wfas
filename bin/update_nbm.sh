@@ -33,6 +33,7 @@ function remove_files_from_mosaic {
 		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml"
 	done
 }
+
 #make a directory for this forecast run:
 mkdir -p ${NBM_DIR}/${FORECAST}
 #now for each variable:
@@ -48,7 +49,7 @@ done
 #for the 36 hours that cover
 #CONUS (co) region:
 FILE_DIR="${NBM_DIR}/${FORECAST}"
-for h in `seq -w 001 1 36`
+for h in `seq -w 001 1 37 && seq -w 040 3 259`
 do
    FILENAME="blend.t00z.core.f${h}.co.grib2"
    wget -q -c "${REMOTE_URL}/${FORECAST}/00/core/${FILENAME}" \
