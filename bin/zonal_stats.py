@@ -61,7 +61,28 @@ def to_dict (keys,values,bin_edges,percent):
 
 rasters = {'Elevation': '/data/landfire/CONUS/US_DEM_2016_02192019/Grid/us_dem_2016_tiled.tiff',
         'Landform' : '/data/ergeo/USA_Landform_30m_WMAS.tif',
-        'Slope' : '/data/ergeo/US_SLOPE_PERCENT_16bit.tif'
+        'Slope' : '/data/ergeo/US_SLOPE_PERCENT_16bit.tif',
+        'ERC Day 1' : '/data/wfas/erc/erc_day0_perc_new.tif',
+        'ERC Day 2' : '/data/wfas/erc/erc_day1_perc_new.tif',
+        'ERC Day 3' : '/data/wfas/erc/erc_day2_perc_new.tif',
+        'ERC Day 4' : '/data/wfas/erc/erc_day3_perc_new.tif',
+        'ERC Day 5' : '/data/wfas/erc/erc_day4_perc_new.tif',
+        'ERC Day 6' : '/data/wfas/erc/erc_day5_perc_new.tif',
+        'ERC Day 7' : '/data/wfas/erc/erc_day6_perc_new.tif',
+        'BI Day 1' : '/data/wfas/bi/bi_day0_perc_new.tif',
+        'BI Day 2' : '/data/wfas/bi/bi_day1_perc_new.tif',
+        'BI Day 3' : '/data/wfas/bi/bi_day2_perc_new.tif',
+        'BI Day 4' : '/data/wfas/bi/bi_day3_perc_new.tif',
+        'BI Day 5' : '/data/wfas/bi/bi_day4_perc_new.tif',
+        'BI Day 6' : '/data/wfas/bi/bi_day5_perc_new.tif',
+        'BI Day 7': '/data/wfas/bi/bi_day6_perc_new.tif',
+        'SFDI Day 1' : '/data/wfas/fbx/fbx_day0_new.tif',
+        'SFDI Day 2' : '/data/wfas/fbx/fbx_day1_new.tif',
+        'SFDI Day 3' : '/data/wfas/fbx/fbx_day2_new.tif',
+        'SFDI Day 4' : '/data/wfas/fbx/fbx_day3_new.tif',
+        'SFDI Day 5' : '/data/wfas/fbx/fbx_day4_new.tif',
+        'SFDI Day 6' : '/data/wfas/fbx/fbx_day5_new.tif',
+        'SFDI Day 7' : '/data/wfas/fbx/fbx_day6_new.tif',
         }
 #1. parse cgi arguments:
 form = cgi.FieldStorage()
@@ -100,10 +121,10 @@ for zone in c.items():
                 raster_proj.ExportToProj4(),
                 zone[1]['geometry'])
         point_val = point_query(repr_p, rasters[keys[k]])
-        zs =  zonal_stats([repr_zone], rasters[keys[k]],stats=['min', 'max', 'mean', 'median','count','unique'])
+        zs =  zonal_stats([repr_zone], rasters[keys[k]],stats=['min', 'max', 'mean', 'median','count','unique'], all_touched=True)
         zhist= zonal_stats([repr_zone],
                 rasters[keys[k]],
-                categorical=True)[0]
+                categorical=True,all_touched=True)[0]
         k1=np.fromiter(zhist.keys(),dtype='int')
         v1=np.fromiter(zhist.values(),dtype='int')
         bin_edges = None 
@@ -125,5 +146,6 @@ for zone in c.items():
 
 results2= {"type":"FeatureCollection","features": results}
 print ('Content-Type: application/json\n');
+print ()
 print(json.dumps(results2,default=myconverter))
 c.close()
