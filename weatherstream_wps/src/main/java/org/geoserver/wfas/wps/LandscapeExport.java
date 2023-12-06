@@ -7,6 +7,14 @@ import java.util.logging.Logger;
 import javax.media.jai.Interpolation;
 
 import org.geoserver.catalog.Catalog;
+import org.geotools.api.coverage.grid.GridGeometry;
+import org.geotools.api.coverage.processing.Operation;
+import org.geotools.api.feature.simple.SimpleFeature;
+import org.geotools.api.geometry.Bounds;
+import org.geotools.api.parameter.ParameterValueGroup;
+import org.geotools.api.referencing.FactoryException;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.TransformException;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.GridEnvelope2D;
 import org.geotools.coverage.grid.GridGeometry2D;
@@ -25,14 +33,6 @@ import org.geotools.util.Utilities;
 import org.geotools.util.factory.Hints;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
-import org.opengis.coverage.grid.GridGeometry;
-import org.opengis.coverage.processing.Operation;
-import org.opengis.feature.simple.SimpleFeature;
-import org.opengis.geometry.Envelope;
-import org.opengis.parameter.ParameterValueGroup;
-import org.opengis.referencing.FactoryException;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.TransformException;
 
 import it.geosolutions.jaiext.range.RangeFactory;
 @DescribeProcess(title = "Landscape export", description = "A Web Processing Service which exports an 8-band Lanscape Geotiff suitable for use in Flammap/Farsite")
@@ -318,7 +318,7 @@ public class LandscapeExport extends WFASProcess {
 		 */
 		if (scaleFactorX!=1 && scaleFactorY!=1) {
 			GridGeometry2D curGridGeom = coverage.getGridGeometry();
-			Envelope curEnv = curGridGeom.getEnvelope2D();
+			Bounds curEnv = curGridGeom.getEnvelope2D();
 
 			GridEnvelope2D curGridEnv = curGridGeom.getGridRange2D();
 			// create new GridGeometry with current size*scaleFactor as many cells

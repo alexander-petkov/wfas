@@ -16,7 +16,7 @@ import org.geotools.process.factory.DescribeResult;
 import org.geotools.process.vector.AggregateProcess;
 import org.geotools.process.vector.AggregateProcess.AggregationFunction;
 import org.geotools.process.vector.AggregateProcess.Results;
-import org.opengis.util.ProgressListener;
+import org.geotools.api.util.ProgressListener;
 
 @DescribeProcess(
 	    title = "AggregateMultiple",

@@ -9,11 +9,13 @@ import org.geotools.coverage.grid.io.StructuredGridCoverage2DReader;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.geotools.referencing.CRS;
+import org.geotools.util.factory.FactoryRegistryException;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
-import org.opengis.coverage.grid.GridCoverageReader;
-import org.opengis.referencing.crs.CoordinateReferenceSystem;
-import org.opengis.referencing.operation.MathTransform;
+import org.geotools.api.coverage.grid.GridCoverageReader;
+import org.geotools.api.referencing.crs.CoordinateReferenceSystem;
+import org.geotools.api.referencing.operation.MathTransform;
 
 public class WFASProcess implements GeoServerProcess {
 	protected Catalog catalog;
@@ -58,6 +60,20 @@ public class WFASProcess implements GeoServerProcess {
 		}
 		return transPoint;
 	}//end transformPoint
+
+	/**
+	 * Returns a JTS Point in Geographic Projection
+	 * @param longitude TODO
+	 * @param latitude TODO
+	 * @return JTS Point
+	 * @throws FactoryRegistryException
+	 */
+	protected Point createPoint(double longitude, double latitude) throws FactoryRegistryException {
+		Point p = JTSFactoryFinder.getGeometryFactory()
+				.createPoint(new Coordinate(longitude,latitude));
+		p.setSRID(4326);
+		return p;
+	}
 	
 	/**
 	 * @param ci CoverageInfo

@@ -29,25 +29,25 @@ import org.geoserver.catalog.Catalog;
 import org.geoserver.catalog.CoverageInfo;
 import org.geoserver.catalog.FeatureTypeInfo;
 import org.geoserver.wps.process.ByteArrayRawData;
+import org.geotools.api.coverage.grid.GridCoverage;
+import org.geotools.api.coverage.grid.GridCoverageReader;
+import org.geotools.api.filter.Filter;
+import org.geotools.api.filter.FilterFactory;
+import org.geotools.api.geometry.MismatchedDimensionException;
+import org.geotools.api.parameter.GeneralParameterValue;
+import org.geotools.api.parameter.ParameterValue;
 import org.geotools.coverage.grid.GridCoverage2D;
 import org.geotools.coverage.grid.io.GridCoverage2DReader;
 import org.geotools.coverage.grid.io.StructuredGridCoverage2DReader;
 import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.feature.FeatureCollection;
 import org.geotools.gce.imagemosaic.ImageMosaicFormat;
-import org.geotools.geometry.DirectPosition2D;
+import org.geotools.geometry.Position2D;
 import org.geotools.process.factory.DescribeParameter;
 import org.geotools.process.factory.DescribeProcess;
 import org.geotools.process.factory.DescribeResult;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Point;
-import org.opengis.coverage.grid.GridCoverage;
-import org.opengis.coverage.grid.GridCoverageReader;
-import org.opengis.filter.Filter;
-import org.opengis.filter.FilterFactory2;
-import org.opengis.geometry.MismatchedDimensionException;
-import org.opengis.parameter.GeneralParameterValue;
-import org.opengis.parameter.ParameterValue;
 
 import systems.uom.common.USCustomary;
 import tech.units.indriya.quantity.Quantities;
@@ -67,15 +67,13 @@ public class WeatherStream extends WFASProcess {
 	
 	public WeatherStream(Catalog catalog) {
 		super(catalog);
-		dem = catalog.getCoverageByName(LANDFIRE_NAMESPACE, LANDFIRE_DEM);
-		// TODO Auto-generated constructor stub
 	}
 	
 	protected String getTimeZoneId(Point p) {
 		FeatureTypeInfo timezones = this.catalog.getFeatureTypeByName("osm", "timezones" );
 		FeatureCollection tzcoll = null;
 		try {
-			FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2( null );
+			FilterFactory ff = CommonFactoryFinder.getFilterFactory(null);//.getFilterFactory( null );
 			Filter filter = ff.contains(ff.property( "the_geom" ), ff.literal(p));
 			tzcoll = timezones.getFeatureSource(null, null).getFeatures(filter);
 		} catch (IOException e) {
@@ -156,16 +154,16 @@ public class WeatherStream extends WFASProcess {
 		 */
 		input = geometryFactory.createPoint(new Coordinate(lon, lat));
 		input.setSRID(4326);
-
+		
 		/*
-		 * Check that input point is within CONUS extent 
-		 * and that we can get elev data for it:
+		 * Get elev data for input coordinates:
 		 */
+		dem = catalog.getCoverageByName(namespaces.get(0), "dem");
 		GridCoverageReader dgc = dem.getGridCoverageReader(null, null);
 		GridCoverage dc = dgc.read(null);
 		
 		transPoint = transformPoint(input, dem.getCRS());
-		Number height = (Number) Array.get(dc.evaluate(new DirectPosition2D(transPoint.getX(),
+		Number height = (Number) Array.get(dc.evaluate(new Position2D(transPoint.getX(),
 				transPoint.getY())),0);
 		dgc.dispose();
 		dc = null;
@@ -176,7 +174,9 @@ public class WeatherStream extends WFASProcess {
 		 * code duplication.
 		 */
 		if (height.intValue() <0 ) {
-			csvWriter.append("Input coordinates are out of CONUS area, ending process...\n");
+			csvWriter.append("Input coordinates are out of area for " 
+					+ dem.getNamespace().getName()
+					+ "archive, ending process...\n");
 			csvWriter.flush();
 			csvWriter.close();
 			return new ByteArrayRawData(out.toByteArray(), "text/csv", "csv");
@@ -269,7 +269,7 @@ public class WeatherStream extends WFASProcess {
 								e.printStackTrace();
 							}
 
-							Number val = (Number) Array.get(gc.evaluate(new DirectPosition2D(transPoint.getX(),
+							Number val = (Number) Array.get(gc.evaluate(new Position2D(transPoint.getX(),
 									transPoint.getY())),0); 
 							UnitFormatter.format(ci, val, useEnglishUnits, wr);
 							gc.dispose(true);					
