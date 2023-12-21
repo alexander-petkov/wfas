@@ -1,9 +1,9 @@
 #!/mnt/cephfs/miniconda3/bin/python3
 #import cgitb; cgitb.enable()
 import numpy as np
-import gdal
-import osr
+from osgeo import gdal, ogr,osr
 import fiona
+import rasterio
 from fiona import transform
 from pprint import pprint
 from shapely.geometry import shape, Polygon, Point
@@ -11,9 +11,33 @@ from rasterstats import zonal_stats, point_query
 import readline
 import json 
 import cgi
+import logging
+import glob
+from regions import regions
 
 def str2bool(v):
   return v.lower() in ("yes", "true", "t", "1")
+
+def geomFromBounds(bounds, srs_wkt):
+    ring = ogr.Geometry(ogr.wkbLinearRing)
+    ring.AddPoint(bounds[0], bounds[1])
+    ring.AddPoint(bounds[0], bounds[3])
+    ring.AddPoint(bounds[2], bounds[3])
+    ring.AddPoint(bounds[2], bounds[1])
+    ring.AddPoint(bounds[0], bounds[1])
+
+    poly = ogr.Geometry(ogr.wkbPolygon)
+    poly.AddGeometry(ring)
+    crs = osr.SpatialReference()
+    crs.ImportFromWkt(srs_wkt)
+    poly.AssignSpatialReference(crs)
+    return poly
+
+def deleteKeys(dic, pattern):
+    list_keys = list(dic.keys())
+    for k in list_keys:
+        if k.startswith(pattern):
+            dic.pop(k)
 
 def myconverter(obj):
         if isinstance(obj, np.integer):
@@ -59,35 +83,12 @@ def to_dict (keys,values,bin_edges,percent):
     
     return res
 
-rasters = {'Elevation': '/data/landfire/CONUS/US_DEM_2016_02192019/Grid/us_dem_2016_tiled.tiff',
-        'Landform' : '/data/ergeo/USA_Landform_30m_WMAS.tif',
-        'Slope' : '/data/ergeo/US_SLOPE_PERCENT_16bit.tif',
-        'ERC Day 1' : '/data/wfas/erc/erc_day0_perc_new.tif',
-        'ERC Day 2' : '/data/wfas/erc/erc_day1_perc_new.tif',
-        'ERC Day 3' : '/data/wfas/erc/erc_day2_perc_new.tif',
-        'ERC Day 4' : '/data/wfas/erc/erc_day3_perc_new.tif',
-        'ERC Day 5' : '/data/wfas/erc/erc_day4_perc_new.tif',
-        'ERC Day 6' : '/data/wfas/erc/erc_day5_perc_new.tif',
-        'ERC Day 7' : '/data/wfas/erc/erc_day6_perc_new.tif',
-        'BI Day 1' : '/data/wfas/bi/bi_day0_perc_new.tif',
-        'BI Day 2' : '/data/wfas/bi/bi_day1_perc_new.tif',
-        'BI Day 3' : '/data/wfas/bi/bi_day2_perc_new.tif',
-        'BI Day 4' : '/data/wfas/bi/bi_day3_perc_new.tif',
-        'BI Day 5' : '/data/wfas/bi/bi_day4_perc_new.tif',
-        'BI Day 6' : '/data/wfas/bi/bi_day5_perc_new.tif',
-        'BI Day 7': '/data/wfas/bi/bi_day6_perc_new.tif',
-        'SFDI Day 1' : '/data/wfas/fbx/fbx_day0_new.tif',
-        'SFDI Day 2' : '/data/wfas/fbx/fbx_day1_new.tif',
-        'SFDI Day 3' : '/data/wfas/fbx/fbx_day2_new.tif',
-        'SFDI Day 4' : '/data/wfas/fbx/fbx_day3_new.tif',
-        'SFDI Day 5' : '/data/wfas/fbx/fbx_day4_new.tif',
-        'SFDI Day 6' : '/data/wfas/fbx/fbx_day5_new.tif',
-        'SFDI Day 7' : '/data/wfas/fbx/fbx_day6_new.tif',
-        }
 #1. parse cgi arguments:
 form = cgi.FieldStorage()
 bins = None
 percent = False
+erc=bi=sfdi = False
+erc_rast=bi_rast=sfdi_rast = {}
 
 #get url path for input json
 if 'zoneurl' in form:
@@ -101,7 +102,66 @@ if 'bins' in form:
 if 'percent' in form:
     percent=str2bool(form.getvalue('percent'))
 
+if 'erc' in form:
+    erc=str2bool(form.getvalue('erc'))
+
+if 'bi' in form:
+    bi=str2bool(form.getvalue('bi'))
+
+if 'sfdi' in form:
+    sfdi=str2bool(form.getvalue('sfdi'))
+
 c= fiona.open(zoneurl,'r')
+#Construct an OGR geometry from 
+bounds =  c.bounds
+coll_env = geomFromBounds(bounds, c.crs_wkt)
+
+within = False
+region = {} 
+r = 0
+
+for r in range(len(regions)):
+    region = list(regions.values())[r]
+    raster = rasterio.open(region.get("Landform"))
+    rast_env = geomFromBounds(raster.bounds,raster.crs.to_wkt())
+    # create the CoordinateTransformation
+    coordTrans = osr.CoordinateTransformation(coll_env.GetSpatialReference(), 
+                                              rast_env.GetSpatialReference())
+    coll_env.Transform(coordTrans)
+    if (rast_env.Contains(coll_env)):
+        within = True
+        break
+
+if (within == False):
+    region = {}
+    print("We do not have raster data for this zone collection.")
+    exit(0)
+
+if (erc != True ) :
+    deleteKeys(region, "ERC")
+    #erc_rast  = {'ERC Day ' + str(i) : v
+    #        for i,v in
+    #            enumerate(glob.glob("/mnt/cephfs/wfas/data/wfas/erc/tif*.tif"),start=1)}
+
+if (bi != True ) :
+    deleteKeys(region,"BI")
+    #bi_rast   = {'BI Day ' + str(i) : v
+    #        for i,v in
+    #            enumerate(glob.glob("/mnt/cephfs/wfas/data/wfas/bi/tif/*.tif"),start=1)}
+if (sfdi != True ) :
+    deleteKeys(region,"SFDI")
+    #sfdi_rast  = {'SFDI Day ' + str(i) : v
+    #        for i,v in
+    #            enumerate(glob.glob("/mnt/cephfs/wfas/data/wfas/fdx/tif/*.tif"),start=1)}
+
+rasters = {'Elevation': '/data/landfire/CONUS/US_DEM_2016_02192019/Grid/us_dem_2016_tiled.tiff',
+        'Landform' : '/data/ergeo/USA_Landform_30m_WMAS.tif',
+        'Slope' : '/data/ergeo/US_SLOPE_PERCENT_16bit.tif',
+        **erc_rast,
+        **bi_rast,
+        **sfdi_rast,
+           }
+rasters=region
 
 results=[]
 
