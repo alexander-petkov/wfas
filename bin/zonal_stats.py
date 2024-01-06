@@ -202,7 +202,7 @@ for zone in c.items():
             'Hist' : hist
             }
         zone[1]['properties'][keys[k]] = res
-    results.append(zone[1]['properties'])
+    results.append(zone[1])
 
 results2= {"type":"FeatureCollection","features": results}
 print ('Content-Type: application/json\n');
