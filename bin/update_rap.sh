@@ -31,6 +31,15 @@ latest_forecast=`curl -s --list-only ${RAP_URL}/|grep -oP '(?<=">)rap\..*(?=/</a
 FORECAST=`echo ${latest_forecast} | cut -d '.' -f 2`
 FORECAST_URL="https://noaarap.blob.core.windows.net/rap/${latest_forecast}"
 RAP_DIR="${DATA_DIR}/rap"
+
+#build a filter to delete granules from previous forecast
+#(but retain first 24 hours)
+#and granules older than 6 weeks:
+#also, add 3 hours to start of forecast, 
+#because dataset for F00 is valid for F03 and so on:
+FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST\+'3 hours'``
+SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST\`-'6 weeks'`
+filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GTE%20'${FORECAST_START}')"
 #END RAP Setup
 
 #FUNCTION: derive_wdir
@@ -74,12 +83,6 @@ function derive_rh {
       --calc='(exp(1.81+(A*17.27- 4717.31) / (A - 35.86))/exp(1.81+(B*17.27- 4717.31) / (B - 35.86)))*100' \
       --outfile=${2} \
       -A ${1} --A_band=2 -B ${1} --B_band=1
-   #gdal_calc.py --format=GTiff --type=Int16 \
-    #  --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
-     # -A ${FILE_DIR}/rh.tmp --A_band=1 \
-      #--calc="where(A>100,100,(where(A<0,0,A)))" \
-      #--outfile=${2}
-   #rm ${FILE_DIR}/rh.tmp
 }
 
 function remove_files_from_mosaic {
@@ -88,12 +91,6 @@ function remove_files_from_mosaic {
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for cv in ${COVERAGES[@]}
 	do
-	   #delete granules from previous forecast
-	   #(but retain first 24 hours)
-	   #and granules older than 6 weeks:
-	   FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST\``
-	   SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST\`-'6 weeks'`
-	   filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GTE%20'${FORECAST_START}')"
 	   TO_REMOVE=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET \
 		   "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${cv}/index/granules.xml?filter=${filter}" \
 		   |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
@@ -109,7 +106,7 @@ function remove_files_from_mosaic {
 
 function process_data {
    #Download CFS datasets
-   for h in `seq -w 00 51`
+   for h in `seq -w 00 05`
    do
       [ $h -lt 2  ] && BANDS=${REMOTE_BANDS[0]} || BANDS=${REMOTE_BANDS[1]}
       ${GDAL_PATH}/gdal_translate -q ${BANDS} -of GTiff \
