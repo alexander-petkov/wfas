@@ -9,8 +9,8 @@ COVERAGESTORES=('2t' '2r' 'tcc' 'dswrf' 'wdir' 'wspd' 'prate')
 DATASETS=('flx' 'pgb' 'flx' 'flx' 'flx' 'flx' 'flx') 
 DATASETS=('flx')
 BAND=(38 368 53 16 0 0 31)
-DERIVED=(0 1 0 0 1 1 0) #is the coverage downloaded, or derived from other datasets?
-FUNCTION=('' 'derive_rh' '' '' 'derive_wdir' 'derive_wspd' '') 
+DERIVED=(0 1 0 0 1 1 1) #is the coverage downloaded, or derived from other datasets?
+FUNCTION=('' 'derive_rh' '' '' 'derive_wdir' 'derive_wspd' 'derive_prate') 
 
 
 #CFS setup:
@@ -20,6 +20,21 @@ FORECAST=`echo ${latest_forecast} | cut -d '.' -f 2`
 FORECAST_URL="${CFS_URL}/${latest_forecast}/00/6hrly_grib_01/"
 CFS_DIR="${DATA_DIR}/cfs"
 #END CFS Setup
+
+#FUNCTION: derive_prate
+#Convert Total precipitation  from 
+#[kg/m^2 s] to [kg/m^2]
+#Called from: make_geotiffs
+#Input Arguments:
+#1. Input Grib file
+#2. Output file name 
+function derive_prate {
+   gdal_calc.py --format=GTiff -A ${1} -B ${1} \
+      --A_band=31 \
+      --type=Float32 --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
+      --calc='A*6*60*60' \
+      --outfile=${2}
+}
 
 #FUNCTION: derive_wdir
 #Derives wind direction from u and v components
@@ -128,11 +143,12 @@ function make_geotiffs {
 	#send input and output file names as arguments 1 and 2:
 	${FUNCTION[${counter}]} ${1} ${FILE_DIR}/${date}.tif.tmp
       fi
+      #transform result from 0-360 to -180 to 180 deg space:
       cp ${CFS_DIR}/template.vrt ${FILE_DIR}/${date}.vrt
       sed -i -e 's/to_replace/'${date}'.tif.tmp/' ${FILE_DIR}/${date}.vrt
       gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
 	${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif
-      rm ${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif.tmp ${FILE_DIR}/${date}.tif.aux.xml
+      rm ${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif.tmp ${FILE_DIR}/${date}*.aux.xml
       (( counter++ ))
    done
 }
