@@ -37,8 +37,8 @@ RAP_DIR="${DATA_DIR}/rap"
 #and granules older than 6 weeks:
 #also, add 3 hours to start of forecast, 
 #because dataset for F00 is valid for F03 and so on:
-FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST\+'3 hours'``
-SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo $FORECAST\`-'6 weeks'`
+FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo ${FORECAST}\`+'3 hours'`
+SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo ${FORECAST}\`-'6 weeks'`
 filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GTE%20'${FORECAST_START}')"
 #END RAP Setup
 
@@ -72,10 +72,10 @@ function derive_wspd {
 
 #FUNCTION: derive_rh
 #Derivesrelative humidity 
-#from specific humidity and pressure.
+#from dewpoint and temperature at 2m.
 #Called from: make_geotiffs
 #Input Arguments:
-#1. Input Grib file
+#1. Input file with Dewpoint and Tempprature
 #2. Output file name 
 function derive_rh {
    gdal_calc.py --quiet --format=GTiff --type Int16 ${GDAL_CALC_OPTIONS} \
@@ -105,8 +105,8 @@ function remove_files_from_mosaic {
 }
 
 function process_data {
-   #Download CFS datasets
-   for h in `seq -w 00 05`
+   #Download RAP datasets
+   for h in `seq -w 00 51`
    do
       [ $h -lt 2  ] && BANDS=${REMOTE_BANDS[0]} || BANDS=${REMOTE_BANDS[1]}
       ${GDAL_PATH}/gdal_translate -q ${BANDS} -of GTiff \
@@ -131,7 +131,8 @@ function make_geotiffs {
               |cut -d '=' -f2`
       date=`date --date='@'${EPOCHTIME} +'%Y%m%d%H%M'`
       if [ ${DERIVED[${counter}]} = 0 ] ; then
-	 ${GDAL_PATH}/gdalwarp -q -ot Int16 -of GTiff \
+	 ${GDAL_PATH}/gdalwarp -q -overwrite \
+	   -ot Int16 -of GTiff \
 	   -b ${BAND[${counter}]} ${GEOTIFF_OPTIONS} \
            -t_srs wgs84 \
 	   -te -180.0000000 -10.6531627 0 90 \
@@ -139,7 +140,7 @@ function make_geotiffs {
       else
 	#send input and output file names as arguments 1 and 2:
 	${FUNCTION[${counter}]} ${1} ${FILE_DIR}/${date}.tif.tmp
-	${GDAL_PATH}/gdalwarp -q -t_srs WGS84 \
+	${GDAL_PATH}/gdalwarp -q -overwrite -t_srs WGS84 \
 		-te -180.0000000 -10.6531627 0 90 \
 		${GEOTIFF_OPTIONS} -overwrite \
 		${FILE_DIR}/${date}.tif.tmp \
@@ -157,7 +158,7 @@ function update_geoserver {
    for c in ${COVERAGESTORES[@]}
    do 
       #1. Clear old granules from Geoserver's catalog and file system:
-      #CFS files local storage locations:
+      #RAP files local storage locations:
       FILE_DIR=${RAP_DIR}/${c}
       #remove granules from mosaic catalog:
       remove_files_from_mosaic ${c}
