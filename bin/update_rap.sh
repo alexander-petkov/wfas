@@ -4,10 +4,6 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source ${DIR}/globals.env
 
-export GRIB_RESOURCE_DIR="/mnt/opt/miniconda3/envs/gdal-3.4.1/share/gdal"
-export PROJ_LIB="/mnt/opt/miniconda3/envs/gdal-3.4.1/share/proj"
-GDAL_PATH="/mnt/opt/miniconda3/envs/gdal-3.4.1/bin"
-
 WORKSPACE="rap"
 COVERAGESTORES=('TMP' 'RH' 'APCP' 'TCDC' 'WDIR' 'WSPD' 'DSWRF') 
 DATASETS=('wrfnat')
@@ -21,8 +17,8 @@ REMOTE_BANDS=( "-b 1030 -b 1032 -b 1034 -b 1035 -b 1037 -b 1064 -b 1072" \
 	"-b 1030 -b 1032 -b 1034 -b 1035 -b 1037 -b 1068 -b 1076" \
       )
 BAND=(1 0 5 6 3 4 7)
-DERIVED=(0 1 0 0 1 1 0) #is the coverage downloaded, or derived from other datasets?
-FUNCTION=('' 'derive_rh' '' '' 'derive_wdir' 'derive_wspd' '') 
+DERIVED=(0 1 1 0 1 1 0) #is the coverage downloaded, or derived from other datasets?
+FUNCTION=('' 'derive_rh' 'derive_precip' '' 'derive_wdir' 'derive_wspd' '') 
 
 
 #RAP setup:
@@ -36,8 +32,9 @@ RAP_DIR="${DATA_DIR}/rap"
 #(but retain first 24 hours)
 #and granules older than 6 weeks:
 #also, add 3 hours to start of forecast, 
-#because dataset for F00 is valid for F03 and so on:
-FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo ${FORECAST}\`+'3 hours'`
+#because dataset for F00 is valid for F03 and so on,
+#and we collect from F01
+FORECAST_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo ${FORECAST}\`+'4 hours'`
 SIX_WEEKS_AGO=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`echo ${FORECAST}\`-'6 weeks'`
 filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GTE%20'${FORECAST_START}')"
 #END RAP Setup
@@ -49,11 +46,35 @@ filter="(time%20LT%20'${SIX_WEEKS_AGO}'%20OR%20time%20GTE%20'${FORECAST_START}')
 #1. Input Grib file
 #2. Output file name 
 function derive_wdir {
-   gdal_calc.py --format=GTiff -A ${1} -B ${1} \
+   ${GDAL_PATH}/gdal_calc.py --format=GTiff -A ${1} -B ${1} \
       --A_band=3 --B_band=4 \
       --type=Float32 --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
       --calc='where(57.3*arctan2(-1*A,-1*B)<0,360+(57.3*arctan2(-1*A,-1*B)),57.3*arctan2(-1*A,-1*B))' \
       --outfile=${2}
+}
+
+#FUNCTION: derive_precip
+#Calculates hourly precip 
+#from APCP files, by subtracting previous hour, 
+#unless hour is F01
+#Called from: make_geotiffs
+#Input Arguments:
+#1. Input 7-band file
+#2. Output file name
+function derive_precip {
+   h=`echo ${1}|rev|cut -c 5,6|rev`
+   if [ $h -eq 1 ]; then
+      ${GDAL_PATH}/gdal_translate -q -b 5 \
+      -of GTiff -ot Float32 ${GEOTIFF_OPTIONS} \
+      ${1} ${2}
+   elif  [ $h -gt 1 ]; then
+      prev=$(printf "%02d" $((10#${h}-1)) )
+      ${GDAL_PATH}/gdal_calc.py --format=GTiff -A ${1} -B "${1/f${h}/f${prev}}" \
+         --A_band=5 --B_band=5 \
+         --type=Float32 --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
+         --calc='(A-B)' \
+	 --outfile=${2}
+   fi
 }
 
 #FUNCTION: derive_wspd
@@ -106,7 +127,7 @@ function remove_files_from_mosaic {
 
 function process_data {
    #Download RAP datasets
-   for h in `seq -w 00 51`
+   for h in `seq -w 01 51`
    do
       [ $h -lt 2  ] && BANDS=${REMOTE_BANDS[0]} || BANDS=${REMOTE_BANDS[1]}
       ${GDAL_PATH}/gdal_translate -q ${BANDS} -of GTiff \
@@ -132,7 +153,7 @@ function make_geotiffs {
       date=`date --date='@'${EPOCHTIME} +'%Y%m%d%H%M'`
       if [ ${DERIVED[${counter}]} = 0 ] ; then
 	 ${GDAL_PATH}/gdalwarp -q -overwrite \
-	   -ot Int16 -of GTiff \
+	   -ot Float32 -of GTiff \
 	   -b ${BAND[${counter}]} ${GEOTIFF_OPTIONS} \
            -t_srs wgs84 \
 	   -te -180.0000000 -10.6531627 0 90 \

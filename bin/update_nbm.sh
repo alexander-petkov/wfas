@@ -6,19 +6,24 @@ source ${DIR}/globals.env
 
 WORKSPACE="nbm"
 NBM_DIR=${DATA_DIR}/nbm
-DATASETS=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WIND' 'DSWRF') 
+DATASETS=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WIND' 'DSWRF')
 DATA_TYPE=('Float32' 'Int16' 'Int16' 'Int16' 'Int16' 'Float32' 'Int16')
 #Below are parameter filters in KVP format, 
 #used by grib_copy to extract the appropriate band
 #for each variable:
-GRIB_FILTERS=('shortName=tp,lengthOfTimeRange:=1,productDefinitionTemplateNumber=8' \
-	'shortName=2r' 'shortName=tcc' 'shortName=2t' 'shortName=10wdir' \
-	'shortName=10si,productDefinitionTemplateNumber=0' 'shortName=dswrf')
+GRIB_FILTERS=(":APCP:surface:" ":RH:2 m above ground:" \
+	":TCDC:surface:" ":TMP:2 m above ground:" \
+	":WDIR:10 m above ground:" ":WIND:10 m above ground:" \
+	":DSWRF:surface:")
+#which band should be converted to tif 
+#after using a filter from GRIB_FILTERS
+GRIB_BANDS=(2 1 1 1 1 1 1)
 REMOTE_URL='https://ftp.ncep.noaa.gov/data/nccf/com/blend/prod'
 
 #get latest forecast run:
-FORECAST=`curl -s -l ${REMOTE_URL}/|grep blend|tail -n 1|grep -oP '(?<=>).*?(?=/)'`
-
+FORECAST=`curl -s -l ${REMOTE_URL}/|grep -oP '(?<=)blend.*?(?=/)'|sort|tail -n 1`
+#re-define to use the HTTP server:
+#REMOTE_URL="https://nomads.ncep.noaa.gov/pub/data/nccf/com/blend/prod"
 #GDAL exports:
 PROJ4_SRS='+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +a=6371200 +b=6371200 +units=m +no_defs'
 
@@ -49,24 +54,28 @@ done
 #for the 36 hours that cover
 #CONUS (co) region:
 FILE_DIR="${NBM_DIR}/${FORECAST}"
-for h in `seq -w 001 1 37 && seq -w 040 3 259`
+for h in `seq -w 001 1 36` # && seq -w 039 3 192`
 do
    FILENAME="blend.t00z.core.f${h}.co.grib2"
-   wget -q -c "${REMOTE_URL}/${FORECAST}/00/core/${FILENAME}" \
-		-O ${FILE_DIR}/${FILENAME};
+   FILE_URL="${REMOTE_URL}/${FORECAST}/00/core/${FILENAME}"
+   ${WFAS_BIN_DIR}/get_inv.pl "${REMOTE_URL}/${FORECAST}/00/core/${FILENAME}.idx" \
+		>"${FILE_DIR}/${FILENAME}.inv"
 
-   t=`gdalinfo ${FILE_DIR}/${FILENAME} \
-	   |grep '   GRIB_VALID_TIME=' -m 1|cut -d ' ' -f 7`
-   date=`date -d @${t} +'%Y%m%d%H%M'` 
    counter=0 
    for d in ${DATASETS[@]}
    do 
-      grib_copy -w ${GRIB_FILTERS[${counter}]} ${FILE_DIR}/${FILENAME} \
-	       ${FILE_DIR}/${FILENAME}.${DATASETS[${counter}]}	
-      gdal_translate -q -b 1 -ot ${DATA_TYPE[${counter}]} \
+
+      grep "${GRIB_FILTERS[${counter}]}" <"${FILE_DIR}/${FILENAME}.inv" \
+	      | ${WFAS_BIN_DIR}/get_grib.pl $FILE_URL \
+	      ${FILE_DIR}/${FILENAME}.${DATASETS[${counter}]}	
+      t=`gdalinfo ${FILE_DIR}/${FILENAME}.${DATASETS[${counter}]} \
+	      |grep '   GRIB_VALID_TIME=' -m 1|tail -n 1|cut -d ' ' -f 7`
+      date=`date -d @${t} +'%Y%m%d%H%M'` 
+      gdal_translate -q -b ${GRIB_BANDS[${counter}]} -ot ${DATA_TYPE[${counter}]} \
 	      -of GTiff ${GEOTIFF_OPTIONS}  ${FILE_DIR}/${FILENAME}.${DATASETS[${counter}]} \
 	      ${NBM_DIR}/${d}/${FORECAST}/${date}.tif
       gdal_edit.py -a_srs "${PROJ4_SRS}" ${NBM_DIR}/${d}/${FORECAST}/${date}.tif
+      sed -i 's/GRIB/TIFF/' ${NBM_DIR}/${d}/${FORECAST}/${date}.tif
       rm ${NBM_DIR}/${d}/${FORECAST}/${date}.tif.aux.xml
       (( counter++ ))
    done
