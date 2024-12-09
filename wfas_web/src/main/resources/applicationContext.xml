@@ -1,0 +1,10 @@
+ <!DOCTYPE beans PUBLIC "-//SPRING//DTD BEAN//EN" "http://www.springframework.org/dtd/spring-beans.dtd">
+
+      <beans>
+         <bean id="weatherDataStatusPage" class="org.geoserver.web.MenuPageInfo">
+         <property name="id" value="weatherDataStatusPage"/>
+      <property name="titleKey" value="WeatherDataStatusPage.page.title"/>
+      <property name="descriptionKey" value="WeatherDataStatusPage.page.description"/>
+      <property name="componentClass" value="org.geoserver.web.wfas.WeatherDataStatusPage"/>
+      </bean>
+     </beans>
