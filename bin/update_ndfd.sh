@@ -12,23 +12,31 @@ NDFD_DIR=${DATA_DIR}/ndfd
 
 VARS=('temp' 'rhm' 'qpf' 'wspd' 'wdir' 'sky' 'pop12' 'solar')
 REMOTE_DIR=('VP.001-003' 'VP.004-007')
-#REMOTE_DIR=('VP.001-003')
+REMOTE_DIR=('VP.001-003')
 PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs'
+
+#Build temporal filter:
+RETENTION_PERIOD_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`date +%Y-%m-%dT%H:%M:%SZ\`-"${RETENTION_PERIOD}"`
+filter="(time%20LT%20'${RETENTION_PERIOD_START}')"
 
 function make_geotiffs {
 	TIFF_PATH=`echo ${1}|rev|cut -d '/' -f 3-|rev`/tif
 	band=1
 	for t in `cdo -s showtimestamp ${1}`
 	do
+		t=`date -d ${t} +'%Y-%m-%dT%H:00:00'` #round date/time to top of the hour
 		if [ ${2} = 'qpf' ] ; then #derive hourly data
 			hours=5
 			while (( $hours >= 0 ))
 			do 
 				#subtract 0-5 hours from selected timestamp:
 				d=`date --date="@$(($(date -d ${t} +%s) - $hours*3600))" +'%Y%m%d%H%M'`;
-				gdal_calc.py --quiet -A ${1} --A_band=${band} --format=GTiff ${GDAL_CALC_OPTIONS} \
-					--calc='A/6' --outfile=${TIFF_PATH}/${d}.tif ;
-				gdal_edit.py -a_srs "${PROJ4_SRS}" ${TIFF_PATH}/${d}.tif ;
+				if [[ -e ${TIFF_PATH}/../../temp/tif/${d}.tif ]] ; then
+					gdal_calc.py --overwrite --quiet -A ${1} --A_band=${band} \
+						--format=GTiff ${GDAL_CALC_OPTIONS} \
+						--calc='A/6' --outfile=${TIFF_PATH}/${d}.tif ;
+					gdal_edit.py -a_srs "${PROJ4_SRS}" ${TIFF_PATH}/${d}.tif ;
+				fi
 				((hours--));
 			done 
 		else
@@ -58,10 +66,6 @@ function compute_solar {
       rm ${NDFD_DIR}/${1}/tif/${filename}.{asc,prj}
    done
 }
-function remove_old_geotiffs {
-	TIFF_PATH=`echo ${1}|rev|cut -d '/' -f 3-|rev`/tif
-	rm ${TIFF_PATH}/*.tif*
-}
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
@@ -69,9 +73,17 @@ function remove_files_from_mosaic {
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for c in ${COVERAGES[@]}
 	do
-	   #delete all granules:
-	   curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
-		"${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages/${c}/index/granules.xml"
+	   #Sorted list of Mosaic granules to delete:
+     	   TO_DELETE=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} \
+		   -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${var}/coverages/${c}/index/granules.xml?filter=${filter}" \
+		   |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
+   	   for i in ${TO_DELETE[@]}
+   	   do
+	      curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
+		"${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages/${c}/index/granules.xml?filter=location='${i}'"
+	      #remove from file system
+	      rm -f ${i}
+           done
 	done
 }
 
@@ -82,9 +94,8 @@ do
       mkdir -p $NDFD_DIR/${v}/tif
    fi
 
-   remove_files_from_mosaic ${v}
    #remove geotiffs generated from previous forecast:
-   rm ${NDFD_DIR}/${v}/tif/*.tif*
+   #rm ${NDFD_DIR}/${v}/tif/*.tif*
    
    for r in ${REMOTE_DIR[@]}
    do
@@ -101,6 +112,9 @@ do
    if [ ${v} = 'solar' ]; then
 	compute_solar ${v}
    fi
+   
+   remove_files_from_mosaic ${v}
+   
    #now reindex the mosaic:  
    for file in `ls ${NDFD_DIR}/${v}/tif/*.tif`
    do
