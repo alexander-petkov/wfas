@@ -5,7 +5,8 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source ${DIR}/globals.env
 
 FTP_ADDR="ftp://tgftp.nws.noaa.gov/SL.us008001/ST.opnl/DF.gr2/DC.ndfd/AR.conus"
-WORKSPACE="ndfd"
+WORKSPACE="ndfd":q
+:::
 
 #NDFD grib files local storage locations:
 NDFD_DIR=${DATA_DIR}/ndfd
@@ -18,7 +19,13 @@ PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6
 #Build temporal filter:
 RETENTION_PERIOD_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`date +%Y-%m-%dT%H:%M:%SZ\`-"${RETENTION_PERIOD}"`
 filter="(time%20LT%20'${RETENTION_PERIOD_START}')"
-
+ 
+function reprojectWGS84 {
+	gdalwarp -of GTiff ${GEOTIFF_OPTIONS} -t_srs WGS84 ${1} ${1}.wgs84
+	rm ${1} ${1}.wgs84.aux.xml
+	mv ${1}.wgs84 ${1}
+	
+}
 function make_geotiffs {
 	TIFF_PATH=`echo ${1}|rev|cut -d '/' -f 3-|rev`/tif
 	band=1
@@ -44,6 +51,8 @@ function make_geotiffs {
 			gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${PROJ4_SRS}" \
 				--config CENTER_LONG -95 -b ${band} ${1} ${TIFF_PATH}/${d}.tif 
 		fi
+		reprojectWGS84 ${TIFF_PATH}/${d}.tif
+		rm ${TIFF_PATH}/${d}.tif.aux.xml
 		((band++))
 	done
 }
@@ -64,12 +73,13 @@ function compute_solar {
       gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
 	      ${NDFD_DIR}/${1}/tif/${filename}.asc ${NDFD_DIR}/${1}/tif/${filename}.tif
       rm ${NDFD_DIR}/${1}/tif/${filename}.{asc,prj,tif.aux.xml}
+      reprojectWGS84 ${NDFD_DIR}/${1}/tif/${filename}.tif
    done
 }
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
-	COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages.xml \
+	COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET ${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml \
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 	for c in ${COVERAGES[@]}
 	do
@@ -80,7 +90,7 @@ function remove_files_from_mosaic {
    	   for i in ${TO_DELETE[@]}
    	   do
 	      curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
-		"${REST_URL}/${WORKSPACE}/coveragestores/ndfd_${1}/coverages/${c}/index/granules.xml?filter=location='${i}'"
+		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml?filter=location='${i}'"
 	      #remove from file system
 	      rm -f ${i}
            done
