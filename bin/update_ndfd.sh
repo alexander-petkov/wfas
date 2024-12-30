@@ -130,7 +130,7 @@ do
    do
 	curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST -H "Content-type: text/plain" \
 		-d "file://${file}" \
-		"${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${v}/external.imagemosaic" ;       
+		"${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" ;       
    done
 done
 
