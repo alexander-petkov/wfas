@@ -5,8 +5,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source ${DIR}/globals.env
 
 FTP_ADDR="ftp://tgftp.nws.noaa.gov/SL.us008001/ST.opnl/DF.gr2/DC.ndfd/AR.conus"
-WORKSPACE="ndfd":q
-:::
+WORKSPACE="ndfd"
 
 #NDFD grib files local storage locations:
 NDFD_DIR=${DATA_DIR}/ndfd
@@ -103,16 +102,12 @@ do
    if [[ ! -e $NDFD_DIR/${v} ]]; then
       mkdir -p $NDFD_DIR/${v}/tif
    fi
-
-   #remove geotiffs generated from previous forecast:
-   #rm ${NDFD_DIR}/${v}/tif/*.tif*
    
    for r in ${REMOTE_DIR[@]}
    do
       if curl -s -I ${FTP_ADDR}/${r}/ds.${v}.bin; then #check that remote file exists
         
 	 #update *.bin files from ftp:
-         #wget --cut-dirs 5 -A*${v}.bin -N -nH --recursive ${FTP_ADDR}/${r}/ \
          wget -q -N ${FTP_ADDR}/${r}/ds.${v}.bin \
             -O ${NDFD_DIR}/${v}/${r}/ds.${v}.bin.grb ;
 
@@ -122,16 +117,16 @@ do
    if [ ${v} = 'solar' ]; then
 	compute_solar ${v}
    fi
-   
+
    remove_files_from_mosaic ${v}
    
    #now reindex the mosaic:  
    for file in `ls ${NDFD_DIR}/${v}/tif/*.tif`
    do
-	curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST -H "Content-type: text/plain" \
+	curl -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST -H "Content-type: text/plain" \
 		-d "file://${file}" \
 		"${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" ;       
    done
 done
 
-${MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd
+{MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd
