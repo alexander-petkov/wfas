@@ -5,15 +5,15 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>org.geoserver</groupId>
-	<artifactId>wxs_wps</artifactId>
+	<artifactId>geoserver-wfas-wps</artifactId>
 	<packaging>jar</packaging>
-	<version>1.0</version>
-	<name>wxs_wps</name>
+	<version>2.24-SNAPSHOT</version>
+	<name>geoserver-wfas-wps</name>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<gt.version>21.2</gt.version>  <!-- change to GeoTools version -->
-		<gs.version>2.15.2</gs.version> <!-- change to GeoServer version -->
+		<gt.version>30-SNAPSHOT</gt.version>  <!-- change to GeoTools version -->
+		<gs.version>2.24-SNAPSHOT</gs.version> <!-- change to GeoServer version -->
 	</properties>
 	<dependencies>
 		<dependency>
@@ -44,6 +44,11 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
+        		<groupId>org.geoserver.web</groupId>
+        		<artifactId>gs-web-core</artifactId>
+        		<version>${gs.version}</version>
+      		</dependency>
+		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>4.13.1</version>
@@ -55,6 +60,22 @@
 			<version>0.3.6</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>edu.ucar</groupId>
+			<artifactId>netcdf4</artifactId>
+			<version>4.6.11</version>
+		</dependency>
+	      <dependency>
+       			 <groupId>junit</groupId>
+        		<artifactId>junit</artifactId>
+      		  <version>4.12</version>
+      </dependency>
+
+	      <dependency>
+	      	<groupId>org.geoserver.extension</groupId>
+	      	<artifactId>gs-app-schema-core</artifactId>
+	      	<version>2.24-SNAPSHOT</version>
+	      </dependency>
 	</dependencies>
 
 	<build>
@@ -62,8 +83,11 @@
 			<plugin>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
+					<source>11</source>
+					<target>11</target>
+					<excludes>
+						<exclude>org/geoserver/wfas/wps/WeatherStreamTiled.java</exclude>
+					</excludes>
 				</configuration>
 			</plugin>
 		</plugins>
