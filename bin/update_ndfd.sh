@@ -20,7 +20,7 @@ RETENTION_PERIOD_START=`date +'%Y-%m-%dT%H:%M:%SZ' -d \`date +%Y-%m-%dT%H:%M:%SZ
 filter="(time%20LT%20'${RETENTION_PERIOD_START}')"
  
 function reprojectWGS84 {
-	gdalwarp -of GTiff ${GEOTIFF_OPTIONS} -t_srs WGS84 ${1} ${1}.wgs84
+	${GDAL_PATH}/gdalwarp -of GTiff ${GEOTIFF_OPTIONS} -t_srs WGS84 ${1} ${1}.wgs84
 	rm ${1} ${1}.wgs84.aux.xml
 	mv ${1}.wgs84 ${1}
 	
@@ -38,16 +38,18 @@ function make_geotiffs {
 				#subtract 0-5 hours from selected timestamp:
 				d=`date --date="@$(($(date -d ${t} +%s) - $hours*3600))" +'%Y%m%d%H%M'`;
 				if [[ -e ${TIFF_PATH}/../../temp/tif/${d}.tif ]] ; then
-					gdal_calc.py --overwrite --quiet -A ${1} --A_band=${band} \
+					${GDAL_PATH}/gdal_calc.py --overwrite --quiet -A ${1} --A_band=${band} \
 						--format=GTiff ${GDAL_CALC_OPTIONS} \
 						--calc='A/6' --outfile=${TIFF_PATH}/${d}.tif ;
-					gdal_edit.py -a_srs "${PROJ4_SRS}" ${TIFF_PATH}/${d}.tif ;
+					${GDAL_PATH}/gdal_edit.py -a_srs "${PROJ4_SRS}" ${TIFF_PATH}/${d}.tif ;
+					reprojectWGS84 ${TIFF_PATH}/${d}.tif
+					rm ${TIFF_PATH}/${d}.tif.aux.xml
 				fi
 				((hours--));
 			done 
 		else
 			d=`date  -d $t +'%Y%m%d%H%M'`;
-			gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${PROJ4_SRS}" \
+			${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs "${PROJ4_SRS}" \
 				--config CENTER_LONG -95 -b ${band} ${1} ${TIFF_PATH}/${d}.tif 
 		fi
 		reprojectWGS84 ${TIFF_PATH}/${d}.tif
@@ -69,7 +71,7 @@ function compute_solar {
 	      --num-threads 6 --day ${day} --month ${month} \
 	      --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
 	      ${ELEV_FILE} ${NDFD_DIR}/${1}/tif/${filename}.asc
-      gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
+      ${GDAL_PATH}/gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
 	      ${NDFD_DIR}/${1}/tif/${filename}.asc ${NDFD_DIR}/${1}/tif/${filename}.tif
       rm ${NDFD_DIR}/${1}/tif/${filename}.{asc,prj,tif.aux.xml}
       reprojectWGS84 ${NDFD_DIR}/${1}/tif/${filename}.tif
@@ -129,4 +131,4 @@ do
    done
 done
 
-{MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd
+{MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd starttime="`date +'%Y-%m-%dT00:00:00Z' -d '-1 day'`"
