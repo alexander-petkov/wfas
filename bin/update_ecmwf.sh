@@ -1,8 +1,8 @@
 #!/bin/bash
 
 #get the path for this script:
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-source ${DIR}/globals.env
+BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+source ${BIN_DIR}/globals.env
 
 WORKSPACE="ecmwf"
 DATASETS=('2t' '2d' 'ssrd' '10u' '10v' 'tp')
@@ -16,7 +16,7 @@ ECMWF_DIR=${DATA_DIR}/${WORKSPACE}
 function download_data {
 	for step in ${STEPS[@]}
 	do
-		python3 download-ecmwf.py "`echo ${DATASETS[@]}`" \
+		python3 ${BIN_DIR}/download-ecmwf.py "`echo ${DATASETS[@]}`" \
 			${step} ${ECMWF_DIR}/${step}.grb2;
 		transform_data ${ECMWF_DIR}/${step}.grb2;
 	done	
