@@ -86,7 +86,7 @@ function remove_files_from_mosaic {
 	do
 	   #Sorted list of Mosaic granules to delete:
      	   TO_DELETE=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} \
-		   -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${var}/coverages/${c}/index/granules.xml?filter=${filter}" \
+		   -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml?filter=${filter}" \
 		   |grep -oP '(?<=<gf:location>).*?(?=</gf:location>)'|sort`)
    	   for i in ${TO_DELETE[@]}
    	   do
@@ -97,14 +97,13 @@ function remove_files_from_mosaic {
            done
 	done
 }
-
 for v in ${VARS[@]}
 do 
    #check that directories exist in $FILE_DIR:
    if [[ ! -e $NDFD_DIR/${v} ]]; then
       mkdir -p $NDFD_DIR/${v}/tif
    fi
-   
+
    for r in ${REMOTE_DIR[@]}
    do
       if curl -s -I ${FTP_ADDR}/${r}/ds.${v}.bin; then #check that remote file exists
@@ -130,5 +129,4 @@ do
 		"${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" ;       
    done
 done
-
-{MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd starttime="`date +'%Y-%m-%dT00:00:00Z' -d '-1 day'`"
+${MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd starttime="`date +'%Y-%m-%dT00:00:00Z' -d '-1 day'`"
