@@ -8,13 +8,14 @@ WORKSPACE="urma"
 URMA_DIR=${DATA_DIR}/${WORKSPACE}
 FTP_DIR='ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/urma/prod'
 FTP_DIR_PATTERN="urma2p5\."
-FTP_FILE_PATTERN="varanl_ndfd.grb2_wexp"
+FTP_FILE_PATTERN="2dvaranl_ndfd.grb2_wexp"
 REMOTE_FILES=() #initially empty array
 DATASETS=('varanl' 'pcp')
 FILE_PREFIX="urma2p5"
 PATTERNS=('urma2p5.*.2dvaranl_ndfd.grb2_wexp' 'urma2p5.*.pcp.01h.wexp.grb2')
 VARS=('2t' 'tp' '10si' '10wdir' '2r' 'solar')
 DERIVED=(0 0 0 0 1 1)
+HAS_PRECIP=1
 FUNCTION=('' '' '' '' 'derive_rhm' 'compute_solar')
 EXTRACT_FROM=('varanl' 'pcp' 'varanl' 'varanl' 'varanl' 'varanl')
 BAND=(3 1 9 8 0 14)
@@ -23,6 +24,16 @@ PROJ4_SRS='+proj=lcc +lat_0=25 +lon_0=-95 +lat_1=25 +lat_2=25 +x_0=0 +y_0=0 +R=6
 RETENTION_PERIOD="6 weeks"
 
 ELEV_FILE=${URMA_DIR}/${WORKSPACE}_dem.tif
+
+function varanl2pcp {
+   #extract dir name:
+   d=`printf ${1}|cut -d '/' -f 1`
+   #extract 2-digit hour:
+   h=`printf ${1}|cut -d '.' -f 3 | awk '{print substr($0,2,2)}'`
+   #construct pcp file name:
+   pcp_file=`printf ${d}/${d}${h}".pcp_01h.wexp.grb2"`
+ }
+	 
 
 get_remote_files
 download_data

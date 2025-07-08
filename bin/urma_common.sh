@@ -49,21 +49,26 @@ done
 function download_data {
    for file in ${REMOTE_FILES[@]}
    do
-	   indexed=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT count(granule) from ${WORKSPACE}.granule_idx where granule='${file}'"`;
-      if [ "${indexed}" = "0" ]; then
-      	${OGR_PATH}/ogrinfo -q PG:"host=${PG_HOST} user=docker password=docker dbname=wfas port=${PG_PORT}" \
+	 indexed=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT count(granule) from ${WORKSPACE}.granule_idx where granule='${file}'"`;
+	 if [ "${indexed}" = "0" ]; then
+      	  ${OGR_PATH}/ogrinfo -q PG:"host=${PG_HOST} user=docker password=docker dbname=wfas port=${PG_PORT}" \
 		-sql "INSERT into ${WORKSPACE}.granule_idx values('${file}')"
-      	wget -q --cut-dirs 6 -xnH -c --recursive \
+	  wget -q --cut-dirs 6 -xnH -c --recursive \
 		--directory-prefix=${URMA_DIR}/granules \
 		-N  --no-parent \
 		${FTP_DIR}/${file}
-	 pcp_file=`printf ${file}| \
-           awk '{print substr($0,1,17) substr($0,1,8) substr($0,9,8) substr($0,27,2) ".pcp_01h.wexp.grb2"}'`
-
-      	wget -q --cut-dirs 6 -xnH -c --recursive \
+        if (( ${HAS_PRECIP} )); then 	
+	 #extract dir name:
+	 d=`printf ${file}|cut -d '/' -f 1`
+	 #extract 2-digit hour:
+	 h=`printf ${file}|cut -d '.' -f 3 | awk '{print substr($0,2,2)}'`
+	 #construct pcp file name:
+	 varanl2pcp ${file} #`printf ${d}/${d}${h}".pcp_01h.wexp.grb2"` 
+	 wget -q --cut-dirs 6 -xnH -c --recursive \
 		--directory-prefix=${URMA_DIR}/granules \
 		-N  --no-parent \
 		${FTP_DIR}/${pcp_file}
+	fi
       fi
    done
 }
@@ -80,7 +85,7 @@ do
 	   replace_pattern="pcp_01h.wexp.grb2"
    else
 	   dtype='Int16'
-	   replace_pattern="2dvaranl_ndfd.grb2_wexp"
+	   replace_pattern=${FTP_FILE_PATTERN}
    fi
    #Sorted list of locally stored Grib files:
    CUR_FILES=(`find ${URMA_DIR}/granules -name '*'${replace_pattern}'*' |sort`)
@@ -100,10 +105,10 @@ do
 	#Replace the word GRIB in binary files
 	#This is to ensure that the NetCDF plugin
 	#doesn't pick up the mosaic as GRIB files:
-	find ${URMA_DIR}/${var} -name '*.tif' \
-		-exec sed -i -e 's/GRIB/GDAL/' {} \;
+	sed -i -e 's/GRIB/GDAL/' ${URMA_DIR}/${var}/${f}
       fi
    done
+   
    #Reindex the mosaic:
    find ${URMA_DIR}/${var} -name '*.tif' \
 	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} \
@@ -138,7 +143,6 @@ do
       #delete the granule from mosaic:
       curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/${var}/coverages/${c}/index/granules.xml?filter=location='${i}'"
-      psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "DELETE from ${WORKSPACE}.granule_idx where granule='${f}'";
       #remove from file system
       rm -f ${i}
    done
@@ -157,7 +161,7 @@ function clean_up {
    #Remove delimiter after last element:
    psql_array=${psql_array%,}
    #Update the index:
-   psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "DELETE from urma.granule_idx where granule not in (select unnest (ARRAY[$psql_array]) as a1)"
+   psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "DELETE from ${WORKSPACE}.granule_idx where granule not in (select unnest (ARRAY[$psql_array]) as a1)"
 
 }
 
