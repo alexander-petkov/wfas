@@ -35,7 +35,7 @@ function download_data {
             -P ${WFAS_DIR}/${1} ;
 	 modified=`stat ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif |grep Modify|cut -d ' ' -f 2`
          date=`date +'%Y%m%d' -d "${modified} +"${d}" days"`
-	 gdalwarp -t_srs EPSG:4326 ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif \
+	 ${GDAL_PATH}/gdalwarp -t_srs EPSG:4326 ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif \
 		 ${WFAS_DIR}/${1}/${1}_${date}.tif
 	 rm ${WFAS_DIR}/${1}/${1}_day${d}${EXT[${counter}]}.tif
       fi
@@ -61,7 +61,7 @@ do
    	rm ${WFAS_DIR}/${v}/tif/*.tif*
 	mv ${WFAS_DIR}/${v}/${v}_*.tif ${WFAS_DIR}/${v}/tif/.
 	#build new .vrt file:
-	gdalbuildvrt -separate -o ${WFAS_DIR}/${v}/${v}.vrt \
+	${GDAL_PATH}/gdalbuildvrt -separate -o ${WFAS_DIR}/${v}/${v}.vrt \
 		${WFAS_DIR}/${v}/tif/*.tif
   	#now reindex the mosaic:  
    	for file in `ls ${WFAS_DIR}/${v}/tif/*.tif`
