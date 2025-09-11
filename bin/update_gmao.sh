@@ -32,58 +32,58 @@ function get_times {
 
 function derive_rh {
    NCFILE=${GMAO_DIR}/${DATASETS[1]}.nc4
-   NUM_BANDS=`gdalinfo NETCDF:"${NCFILE}":tlml|grep '^Band'| wc -l`
+   NUM_BANDS=`${GDAL_PATH}/gdalinfo NETCDF:"${NCFILE}":tlml|grep '^Band'| wc -l`
    get_times ${NCFILE}
    for b in `seq  1 ${NUM_BANDS}`
    do
       OUTFILE=${GMAO_DIR}/rh/${times[$((b-1))]}.tif #subtract b/c arrays are 0-based
-      gdal_calc.py --quiet --format=GTiff --type=Int16 \
-	 --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
+      ${GDAL_PATH}/gdal_calc.py --quiet --format=GTiff --type=Int16 \
+	 --NoDataValue=-9999 --overwrite ${GDAL_CALC_OPTIONS} \
          -A NETCDF:"${NCFILE}":tlml --A_band=${b} \
          -B NETCDF:"${NCFILE}":ps   --B_band=${b} \
 	 -C NETCDF:"${NCFILE}":qlml --C_band=${b} \
          --calc='( C * B / (0.378 * C + 0.622))/(6.112 * exp((17.67 * (A-273.15))/(A-29.65)))' \
 	 --outfile=${OUTFILE}
-      gdal_edit.py -a_srs EPSG:4326 ${OUTFILE}
+      ${GDAL_PATH}/gdal_edit.py -a_srs EPSG:4326 ${OUTFILE}
    done
  }
 
 function derive_swgdn {
    NCFILE=${GMAO_DIR}/${DATASETS[3]}.nc4
-   NUM_BANDS=`gdalinfo NETCDF:"${NCFILE}":swgdn|grep '^Band'| wc -l`
+   NUM_BANDS=`${GDAL_PATH}/gdalinfo NETCDF:"${NCFILE}":swgdn|grep '^Band'| wc -l`
    get_times ${NCFILE}
 
    for b in `seq  1 ${NUM_BANDS}`
    do
       OUTFILE=${GMAO_DIR}/swgdn/${times[$((b-1))]}.tif #subtract b/c arrays are 0-based
-      gdal_translate -q -of GTiff -a_srs EPSG:4326 ${GEOTIFF_OPTIONS} -b ${b} \
+      ${GDAL_PATH}/gdal_translate -q -of GTiff -a_srs EPSG:4326 ${GEOTIFF_OPTIONS} -b ${b} \
          NETCDF:"${NCFILE}":swgdn ${OUTFILE}
    done
 }
 
 function derive_cldtot {
    NCFILE=${GMAO_DIR}/${DATASETS[3]}.nc4
-   NUM_BANDS=`gdalinfo NETCDF:"${NCFILE}":cldtot|grep '^Band'| wc -l`
+   NUM_BANDS=`${GDAL_PATH}/gdalinfo NETCDF:"${NCFILE}":cldtot|grep '^Band'| wc -l`
    get_times ${NCFILE}
 
    for b in `seq  1 ${NUM_BANDS}`
    do
       OUTFILE=${GMAO_DIR}/cldtot/${times[$((b-1))]}.tif #subtract b/c arrays are 0-based
-      gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -b ${b} \
+      ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -b ${b} \
          NETCDF:"${NCFILE}":cldtot ${OUTFILE}
    done
 }
 
 function derive_prectot {
    NCFILE=${GMAO_DIR}/${DATASETS[2]}.nc4
-   NUM_BANDS=`gdalinfo NETCDF:"${NCFILE}":prectot|grep '^Band'| wc -l`
+   NUM_BANDS=`${GDAL_PATH}/gdalinfo NETCDF:"${NCFILE}":prectot|grep '^Band'| wc -l`
    get_times ${NCFILE}
 
    for b in `seq  1 ${NUM_BANDS}`
    do
       OUTFILE=${GMAO_DIR}/prectot/${times[$((b-1))]}.tif #subtract b/c arrays are 0-based
-      gdal_calc.py --quiet --format=GTiff --type=Float32 \
-              --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
+      ${GDAL_PATH}/gdal_calc.py --quiet --format=GTiff --type=Float32 \
+              --NoDataValue=-9999 --overwrite ${GDAL_CALC_OPTIONS} \
 	 -A NETCDF:"${NCFILE}":prectot --A_band=${b} \
 	 --calc='A*3600' \
 	 --outfile=${OUTFILE}
@@ -92,52 +92,52 @@ function derive_prectot {
 
 function derive_t2m {
    NCFILE="${GMAO_DIR}/${DATASETS[0]}.nc4"
-   NUM_BANDS=`gdalinfo NETCDF:"${NCFILE}":t2m|grep '^Band'| wc -l`
+   NUM_BANDS=`${GDAL_PATH}/gdalinfo NETCDF:"${NCFILE}":t2m|grep '^Band'| wc -l`
    get_times ${NCFILE}
    
    for b in `seq  1 ${NUM_BANDS}`
    do
-      gdal_translate -q -of GTiff -a_srs EPSG:4326 ${GEOTIFF_OPTIONS} -b ${b} \
+      ${GDAL_PATH}/gdal_translate -q -of GTiff -a_srs EPSG:4326 ${GEOTIFF_OPTIONS} -b ${b} \
 	      NETCDF:"${NCFILE}":t2m ${GMAO_DIR}/t2m/${times[$(( b-1 ))]}.tif
    done
 }
 
 function derive_wdir {
-	      # expression from https://gis.stackexchange.com/questions/327957/what-is-the-correct-gdal-calc-syntax
+	      # expression from https://gis.stackexchange.com/questions/327957/what-is-the-correct-${GDAL_PATH}/gdal-calc-syntax
       	      # this shows Wind Direction TO (we need Wind Direction From ):
 	      #((degrees (arctan2 (A,B)))+360)*((degrees (arctan2 (A,B)))<0)+(degrees (arctan2 (A,B)))*((degrees (arctan2 (A,B)))>=0)
    NCFILE=${GMAO_DIR}/${DATASETS[0]}.nc4
-   NUM_BANDS=`gdalinfo NETCDF:"${NCFILE}":u10m|grep '^Band'| wc -l`
+   NUM_BANDS=`${GDAL_PATH}/gdalinfo NETCDF:"${NCFILE}":u10m|grep '^Band'| wc -l`
    get_times ${NCFILE}
    
    for b in `seq  1 ${NUM_BANDS}`
    do 
       OUTFILE=${GMAO_DIR}/wdir/${times[$((b-1))]}.tif #subtract b/c arrays are 0-based
-      gdal_calc.py --quiet --format=GTiff --type=Float32 \
-              --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
+      ${GDAL_PATH}/gdal_calc.py --quiet --format=GTiff --type=Float32 \
+              --NoDataValue=-9999 --overwrite ${GDAL_CALC_OPTIONS} \
 	      -A NETCDF:"${NCFILE}":u10m --A_band=${b} \
 	      -B NETCDF:"${NCFILE}":v10m --B_band=${b} \
 	      --calc='(((arctan2 ((-1*A),(-1*B)))*57.3)+360)*(((arctan2 ((-1*A),(-1*B)))*57.3)<0)+((arctan2 ((-1*A),(-1*B)))*57.3)*(((arctan2 ((-1*A),(-1*B)))*57.3)>=0)' \
 	      --outfile ${OUTFILE} 
-      gdal_edit.py -a_srs EPSG:4326 ${OUTFILE}
+      ${GDAL_PATH}/gdal_edit.py -a_srs EPSG:4326 ${OUTFILE}
    done
 }
 
 function derive_wspd {
    NCFILE=${GMAO_DIR}/${DATASETS[0]}.nc4
-   NUM_BANDS=`gdalinfo NETCDF:"${NCFILE}":u10m|grep '^Band'| wc -l`
+   NUM_BANDS=`${GDAL_PATH}/gdalinfo NETCDF:"${NCFILE}":u10m|grep '^Band'| wc -l`
    get_times ${NCFILE}
 
    for b in `seq  1 ${NUM_BANDS}`
    do 
       OUTFILE=${GMAO_DIR}/wspd/${times[$((b-1))]}.tif #subtract b/c arrays are 0-based
-      gdal_calc.py --quiet --format=GTiff --type=Float32 \
-	      --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
+      ${GDAL_PATH}/gdal_calc.py --quiet --format=GTiff --type=Float32 \
+	      --NoDataValue=-9999 --overwrite ${GDAL_CALC_OPTIONS} \
 	      -A NETCDF:"${NCFILE}":u10m --A_band=${b} \
 	      -B NETCDF:"${NCFILE}":v10m --B_band=${b} \
 	      --calc='sqrt(A*A+B*B)' \
 	      --outfile ${OUTFILE} 
-      gdal_edit.py -a_srs EPSG:4326 ${OUTFILE}
+      ${GDAL_PATH}/gdal_edit.py -a_srs EPSG:4326 ${OUTFILE}
    done
 }
 
@@ -148,7 +148,6 @@ function remove_files_from_mosaic {
 	for c in ${COVERAGES[@]}
 	do
 	   #delete all granules:
-	   echo ${c}
 	   curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages/${c}/index/granules.xml"
 	done
@@ -157,10 +156,11 @@ function remove_files_from_mosaic {
 #Download GEOS datasets
 for d in ${DATASETS[@]}
 do 
+   echo Dataset: ${d}	
    #Get latest forecast for this dataset:
    FORECAST=`curl -s -l "${REMOTE_SRV}/${d}" \
 	   |cut -d '"' -f 2|grep '_00:'|cut -d ':' -f 1| tail -n 1`
-   echo ${FILTERS[${counter}]}
+   echo ${FORECAST}
    nccopy "${REMOTE_SRV}/${d}/${FORECAST}?${FILTERS[${counter}]}" ${GMAO_DIR}/${d}.nc4
    (( counter++ ))
 done
@@ -188,8 +188,15 @@ do
    find ${FILE_DIR} -empty -type f -delete ;
 #2. Move new granules in place:
    mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
-#3.Re-index mosaic:
-   find ${FILE_DIR}/tif -name '*.tif' -type f -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" \;
+#3. Remove the word GRIB from binary files:
+   find ${FILE_DIR}/tif -name '*.tif' \
+        -exec sed -i -e 's/GRIB/GDAL/' {} \;
+   rm ${FILE_DIR}/tif/*.xml
+#4. Re-index mosaic:
+   find ${FILE_DIR}/tif -name '*.tif' -type f \
+	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} \
+	   -H "Content-type: text/plain" -d "file://"{}  \
+	   "${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" \;
 done
    
 rm ${GMAO_DIR}/*.nc4 ;
