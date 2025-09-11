@@ -133,6 +133,9 @@ download_data
 #to deter the NetCDF plugin to 
 #falsely detect Geotifs as NetCDF files:
 find ${ECMWF_DIR} -name '*.tif' -exec ${GDAL_PATH}/gdal_edit.py -a_srs EPSG:4326 {} \; 
+#Remove the word GRIB from binary files:
+find ${ECMWF_DIR} -name '*.tif' \
+	-exec sed -i -e 's/GRIB/GDAL/' {} \;
 FORECAST=`cdo -s showtimestamp -seltimestep,1 ${ECMWF_DIR}/0.grb2 \
 	|date --date='TZ="UTC"' +'%Y-%m-%dT%H:%M:%SZ'`
 update_geoserver
