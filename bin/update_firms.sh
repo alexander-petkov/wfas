@@ -3,7 +3,6 @@
 #get the path for this script:
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source ${DIR}/globals.env
-PROJ_LIB="/mnt/opt/miniconda3/envs/gdal-3.4.1/share/proj"
 export OGR_TRUNCATE=YES
 WORKSPACE="firms"
 FIRMS_DIR=${DATA_DIR}/firms
@@ -24,15 +23,14 @@ do
    tblname=`echo ${name}|awk '{print tolower($0)}'`
    accum_tblname=`echo ${tblname}|cut -d '_' -f 1-4`
    unzip -qq -e -o ${FIRMS_DIR}/${ZIPFILE} -d ${FIRMS_DIR} 
-   export OGR_TRUNCATE=YES
-   /mnt/opt/miniconda3/envs/gdal-3.4.1/bin/ogr2ogr -f PostgreSQL \
+   ${OGR_PATH}/ogr2ogr -f PostgreSQL \
 	   -a_srs EPSG:4326 \
-	   PG:"host=${PG_HOST} user=docker password=docker dbname=wfas schemas=firms port=${PG_PORT}" \
+	   PG:"host=${PG_HOST} user= password= dbname= schemas=firms port=${PG_PORT}" \
 	   ${FIRMS_DIR}/${name}.shp ${name} 
-   psql -q -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "INSERT into firms.${accum_tblname} SELECT * from firms.${tblname} where to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')>(select max(to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')) from firms.${accum_tblname})"
-   psql -q -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "DELETE from firms.${accum_tblname} where to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')<(now() - interval '2 weeks')"
-   psql -q -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "UPDATE firms.${accum_tblname} set datetime=to_timestamp (acq_date || ' ' || acq_time,'YYYY-MM-DD HH24MI') where datetime is null"
-   psql -q -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "REINDEX table firms.${accum_tblname}"
-   psql -q -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "DELETE from firms.${tblname}"
+   psql -q -h ${PG_HOST} -p${PG_PORT} -U -c "INSERT into firms.${accum_tblname} SELECT * from firms.${tblname} where to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')>(select max(to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')) from firms.${accum_tblname})"
+   psql -q -h ${PG_HOST} -p${PG_PORT} -U -c "DELETE from firms.${accum_tblname} where to_timestamp (acq_date || ' ' || acq_time ,'YYYY-MM-DD HH24MI')<(now() - interval '2 weeks')"
+   psql -q -h ${PG_HOST} -p${PG_PORT} -U -c "UPDATE firms.${accum_tblname} set datetime=to_timestamp (acq_date || ' ' || acq_time,'YYYY-MM-DD HH24MI') where datetime is null"
+   psql -q -h ${PG_HOST} -p${PG_PORT} -U -c "REINDEX table firms.${accum_tblname}"
+   psql -q -h ${PG_HOST} -p${PG_PORT} -U -c "DELETE from firms.${tblname}"
 done
 rm -rf ${FIRMS_DIR}/*.zip
