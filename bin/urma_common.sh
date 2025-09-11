@@ -77,6 +77,7 @@ function download_data {
 function process_new_granules {
 
 counter=0
+GEOTIFF_OPTIONS="${GEOTIFF_OPTIONS} -a_nodata 9999" 
 
 for var in ${VARS[@]}
 do 
@@ -114,8 +115,6 @@ do
 	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} \
 	   -XPOST -H "Content-type: text/plain" -d "file://"{} \
 	   "${REST_URL}/${WORKSPACE}/coveragestores/${var}/external.imagemosaic" \;
-   #Get rid of auto generated stat files:
-   find ${URMA_DIR}/${var} -name '*.aux.xml' -delete
    (( counter++ ))
 done
 }
@@ -143,8 +142,8 @@ do
       #delete the granule from mosaic:
       curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XDELETE \
 		"${REST_URL}/${WORKSPACE}/coveragestores/${var}/coverages/${c}/index/granules.xml?filter=location='${i}'"
-      #remove from file system
-      rm -f ${i}
+      #remove from file system 
+      rm -f ${i}*
    done
    (( counter++ ))
 done
