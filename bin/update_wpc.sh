@@ -17,7 +17,8 @@ PROJ4_SRS='+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=-95 +x_0=0 +y_0=0 +a=6
 
 function remove_files_from_mosaic {
 	#Get a list of coverages for this mosaic:
-	IFS=$'\n' COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
+	IFS=$'\n' 
+	COVERAGES=(`curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XGET "${REST_URL}/${WORKSPACE}/coveragestores/${1}/coverages.xml" \
 		                     |grep -oP '(?<=<name>).*?(?=</name>)'`)
 
 	for c in ${COVERAGES[@]}
@@ -44,11 +45,11 @@ do
       wget -q -c "${REMOTE_URL}/${FILENAME}" \
 		-O ${QPF_DIR}/grb/${FILENAME};
 
-      t=`gdalinfo ${QPF_DIR}/grb/${FILENAME} \
+      t=`${GDAL_PATH}/gdalinfo ${QPF_DIR}/grb/${FILENAME} \
 	   |grep '   GRIB_VALID_TIME=' -m 1|cut -d ' ' -f 7`
       date=`date -d @${t} +'%Y%m%d%H%M'` 
-      gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} ${QPF_DIR}/grb/${FILENAME} ${QPF_DIR}/${date}.tif 
-      gdal_edit.py -a_srs "${PROJ4_SRS}" ${QPF_DIR}/${date}.tif
+      ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} ${QPF_DIR}/grb/${FILENAME} ${QPF_DIR}/${date}.tif 
+      ${GDAL_PATH}/gdal_edit.py -a_srs "${PROJ4_SRS}" ${QPF_DIR}/${date}.tif
       rm ${QPF_DIR}/${date}.tif.aux.xml
    done
 
