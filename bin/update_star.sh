@@ -10,8 +10,8 @@ STAR_FTP='https://www.star.nesdis.noaa.gov/pub/corp/scsb/wguo/data/Blended_VH_4k
 DATASETS=('SMN')
 # get data in YYYYWWW format:
 #DATE=`date -d "-1 week" +%Y0%W`
-DATE=`date +%Y0%W`
-PATTERNS=("VHP.G04.C07.npp.P${DATE}.SM.SMN.tif")
+DATE=`date -d "-1 week" +%Y0%W`
+PATTERNS=("VHP.G04.C07.j01.npp.P${DATE}.SM.SMN.tif")
 counter=0
 
 function get_remote_file {
@@ -23,8 +23,8 @@ function get_remote_file {
 
 function transform_file {
    if [ -f ${1} ] ; then
-	gdal_translate -q -of GTiff ${GEOTIFF_OPTS} ${1} ${1}.new  
-	gdaladdo -q --config COMPRESS_OVERVIEW DEFLATE ${1}.new 2 4 8
+	${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTS} ${1} ${1}.new  
+	${GDAL_PATH}/gdaladdo -q --config COMPRESS_OVERVIEW DEFLATE ${1}.new 2 4 8
    fi
 }
 
@@ -40,7 +40,7 @@ do
 	   echo "File ${PATTERNS[${counter}]}.new doesn't exists"
 	   get_remote_file ${PATTERNS[${counter}]}
 	   transform_file ${FILE_DIR}/${PATTERNS[${counter}]}
-	   rm ${FILE_DIR}/${PATTERNS[${counter}]}
+	   #rm ${FILE_DIR}/${PATTERNS[${counter}]}
 	   #add file to mosaic:
 	   echo ${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic
            curl -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST \
