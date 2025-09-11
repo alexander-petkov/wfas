@@ -14,5 +14,7 @@ SUBREGION='subregion=&leftlon=-140&rightlon=-60&toplat=53&bottomlat=22'
 SUBREGION='subregion=&leftlon=-180&rightlon=180&toplat=90&bottomlat=-90'
 
 download_data
+find ${GFS_DIR} -name '*.tif.aux.xml' -delete
 update_geoserver
+
 exit 0
