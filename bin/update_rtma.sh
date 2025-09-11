@@ -6,8 +6,8 @@ source ${DIR}/rtma_common.sh
 
 WORKSPACE="rtma"
 RTMA_DIR=${DATA_DIR}/rtma
-RTMA_FTP='ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod'
-FTP_DIR_PATTERN="rtma2p5"
+FTP_DIR='ftp://ftp.ncep.noaa.gov/pub/data/nccf/com/rtma/prod'
+FTP_DIR_PATTERN="rtma2p5\."
 FTP_FILE_PATTERN="varanl_ndfd.grb2_wexp"
 REMOTE_FILES=() #initially empty array
 DATASETS=('varanl' 'pcp')
@@ -30,5 +30,5 @@ download_data
 process_new_granules
 remove_old_granules
 clean_up
-${MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=rtma starttime="`date +'%Y-%m-%dT00:00:00Z' -d '-1 day'`"
+${MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=rtma starttime="`date +'%Y-%m-%dT00:00:00Z' -d '-1 day'`" >> ${MOUNT_DIR}/netcdf/netcdf_export.log 2>&1
 exit 0
