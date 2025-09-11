@@ -10,7 +10,6 @@ COVERAGESTORES=('t_2m' 'relhum_2m' 'clct' 'aswdir_s' 'wdir' 'wspd' 'tot_prec')
 DERIVED=(0 0 0 0 1 1 1) #is the coverage downloaded, or derived from other datasets?
 FUNCTION=('' '' '' '' 'derive_wdir' 'derive_wspd' 'derive_precip') 
 
-
 #ICON setup:
 ICON_URL="https://opendata.dwd.de/weather/nwp/icon/grib/00"
 ICON_DIR="${DATA_DIR}/icon"
@@ -20,28 +19,31 @@ WEIGHTS_FILE=${ICON_DIR}/ICON_GLOBAL2WORLD_0125_EASY/weights_icogl2world_0125.nc
 
 function derive_precip {
    FILE_DIR=${ICON_DIR}/${1}	
+   echo ${FILE_DIR}
    for h in `seq 0 78 && seq 81 3 180`
    do
       current=$(printf "%03d" ${h})
+      echo "Hour: ${current}"
       pcp_file=`find ${FILE_DIR} -name '*_'${current}'_TOT_PREC.grib2.0125'`
       t=`cdo -s showtimestamp -seltimestep,1 ${pcp_file}`
       date=`date -d ${t} +'%Y%m%d%H%M'`
       
       if (( $h==0 )); then
-         gdal_translate -q -of GTiff -ot Float32 ${GEOTIFF_OPTIONS} \
+         ${GDAL_PATH}/gdal_translate -q -of GTiff -ot Float32 ${GEOTIFF_OPTIONS} \
            -a_srs wgs84 -b 1 ${pcp_file} \
            ${FILE_DIR}/${date}.tif
       elif (( $h>0 && $h<=78 )); then
 	  previous=$(printf "%03d" $(( h - 1 )) )
 	  prev_pcp_file=`find ${FILE_DIR} -name '*_'${previous}'_TOT_PREC.grib2.0125'`
-	  gdal_calc.py --quiet -A ${1} --format=GTiff --type=Float32 ${GDAL_CALC_OPTIONS} \
+	  ${GDAL_PATH}/gdal_calc.py --format=GTiff --type=Float32 ${GDAL_CALC_OPTIONS} \
 		  -A ${pcp_file} \
 		  -B ${prev_pcp_file} \
 		  --calc='(A-B)' \
 		  --outfile=${FILE_DIR}/${date}.tif
       elif (( $h>=81 && $h<=180 )); then
 	  previous=$(printf "%03d" $(( h - 3 )) )
-	  gdal_calc.py --quiet -A ${1} --format=GTiff --type=Float32 ${GDAL_CALC_OPTIONS} \
+	  prev_pcp_file=`find ${FILE_DIR} -name '*_'${previous}'_TOT_PREC.grib2.0125'`
+	  ${GDAL_PATH}/gdal_calc.py --format=GTiff --type=Float32 ${GDAL_CALC_OPTIONS} \
 		  -A ${pcp_file} \
 		  -B ${prev_pcp_file} \
 		  --calc='(A-B)' \
@@ -65,10 +67,10 @@ function derive_wdir {
 	   ${FILE_DIR}/${w_file}
          t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/${w_file}`
          date=`date  -d $t +'%Y%m%d%H%M'` 
-         gdal_translate -q -of GTiff -ot Int16 ${GEOTIFF_OPTIONS}  -a_srs wgs84 -b 1 \
+         ${GDAL_PATH}/gdal_translate -q -of GTiff -ot Int16 ${GEOTIFF_OPTIONS}  -a_srs wgs84 -b 1 \
 	   ${FILE_DIR}/${w_file} \
 	   ${FILE_DIR}/${date}.tif
-	 rm ${FILE_DIR}/${w_file}  
+	 rm -f ${FILE_DIR}/${w_file}  
       fi
    done
 }
@@ -85,7 +87,7 @@ function derive_wspd {
 	   ${u_file} ${v_file} ${FILE_DIR}/${wspd_file}
          t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/${wspd_file}`
          date=`date  -d $t +'%Y%m%d%H%M'` 
-         gdal_translate -q -of GTiff -ot Float32 ${GEOTIFF_OPTIONS} -a_srs wgs84 \
+         ${GDAL_PATH}/gdal_translate -q -of GTiff -ot Float32 ${GEOTIFF_OPTIONS} -a_srs wgs84 \
 	   ${FILE_DIR}/${wspd_file} \
 	   ${FILE_DIR}/${date}.tif
       fi
@@ -160,7 +162,7 @@ function make_geotiffs {
 	 do
 	      t=`cdo -s showtimestamp -seltimestep,1 ${file}`
               date=`date -d ${t} +'%Y%m%d%H%M'`
-	      gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
+	      ${GDAL_PATH}/gdal_translate -q -ot Float32 -of GTiff ${GEOTIFF_OPTIONS} \
 		      -a_srs wgs84 ${file} ${FILE_DIR}/${date}.tif
 	 done
       else
@@ -168,6 +170,8 @@ function make_geotiffs {
       fi
       (( counter++ ))
    done
+   find ${ICON_DIR}/tif -name '*.tif' \
+         -exec sed -i -e 's/GRIB/GDAL/' {} \;
 }
 
 function update_geoserver {
@@ -183,7 +187,10 @@ function update_geoserver {
       remove_files_from_mosaic ${c}
       #2. Move new granules in place:
       mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
-      #3.Re-index mosaic:
+      #3. Remove the word GRIB from binary files:
+      find ${FILE_DIR}/tif -name '*.tif' \
+	      -exec sed -i -e 's/GRIB/GDAL/' {} \;
+      #4. Re-index mosaic:
       find ${FILE_DIR}/tif -name '*.tif' \
 	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" \
 	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${c}/external.imagemosaic" \;
@@ -200,3 +207,4 @@ make_geotiffs
 update_geoserver
 #remove old granules from system:
 find ${ICON_DIR} -name '*.grib2*' -type f -delete ;
+find ${ICON_DIR} -name '*.tif.aux.xml' -type f -delete ;
