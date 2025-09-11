@@ -120,7 +120,9 @@ do
    fi
 
    remove_files_from_mosaic ${v}
-   
+   #Remove the word GRIB from binary files:
+   find ${NDFD_DIR}/${v}/tif -name '*.tif' \
+	   -exec sed -i -e 's/GRIB/GDAL/' {} \; 
    #now reindex the mosaic:  
    for file in `ls ${NDFD_DIR}/${v}/tif/*.tif`
    do
@@ -129,4 +131,4 @@ do
 		"${REST_URL}/${WORKSPACE}/coveragestores/${v}/external.imagemosaic" ;       
    done
 done
-${MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd starttime="`date +'%Y-%m-%dT00:00:00Z' -d '-1 day'`"
+${MOUNT_DIR}/wfas/bin/netcdf_package_export.sh archive=ndfd starttime="`date +'%Y-%m-%dT00:00:00Z' -d '+2 days'`"
