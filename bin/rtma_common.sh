@@ -7,18 +7,18 @@ source ${DIR}/globals.env
 counter=0
 
 function derive_rhm {
-   gdal_calc.py --format=GTiff --type Int16 ${GDAL_CALC_OPTIONS} \
+   ${GDAL_PATH}/gdal_calc.py  --format=GTiff --type Int16 ${GDAL_CALC_OPTIONS} \
       --co=BLOCKXSIZE=128 --co=BLOCKYSIZE=128 \
       --calc='(exp(1.81+(A*17.27- 4717.31) / (A - 35.86))/exp(1.81+(B*17.27- 4717.31) / (B - 35.86)))*100' \
       --outfile=${2} \
       -A ${1} --A_band=4 -B ${1} --B_band=3
-
-   gdal_edit.py -a_srs "${PROJ4_SRS}" ${2}
+   ${GDAL_PATH}/gdal_edit.py -a_srs "${PROJ4_SRS}" ${2}
 }		      
 
 function compute_solar {
    f=`echo ${1}|rev|cut -d '/' -f 1,2|rev` #get last two tokens, containing dir and file name
-   cloud_file=${RTMA_DIR}/varanl/tif/tcc/${f}
+   f=${f/2dvaranl_ndfd.grb2_wexp/tif}
+   cloud_file=${RTMA_DIR}/varanl/tcc/${f}
    fdate=`echo ${cloud_file}| sed 's/.*\([[:digit:]]\{8\}\)\+.*t\([[:digit:]]\{2\}\)z.*/\1 \2/'`
    minute=0
    hour=${fdate:8:2}
@@ -29,8 +29,8 @@ function compute_solar {
            --num-threads 6 --day ${day} --month ${month} \
            --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
            ${ELEV_FILE} ${2}.asc
-   gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} ${2}.asc ${2}
-   rm ${2}.{asc,prj}
+   ${GDAL_PATH}/gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} ${2}.asc ${2}
+   rm -f ${2}.{asc,xml,prj}
 }
 
 function download_varanl {
@@ -38,14 +38,14 @@ function download_varanl {
    do
 	   indexed=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT count(granule) from ${WORKSPACE}.varanl_granules where granule='${file}'"`;
       if [ "${indexed}" = "0" ]; then 
-      	ogrinfo -q PG:"host=${PG_HOST} user=docker password=docker dbname=wfas port=${PG_PORT}" \
+      	${OGR_PATH}/ogrinfo -q PG:"host=${PG_HOST} user=docker password=docker dbname=wfas port=${PG_PORT}" \
 		-sql "INSERT into ${WORKSPACE}.varanl_granules values('${file}')"
       	wget -q --cut-dirs 6 -xnH -c --recursive --directory-prefix=${1} -N  --no-parent \
          -A${PATTERNS[counter]} \
-         ${RTMA_FTP}/${file}
+         ${FTP_DIR}/${file}
       fi
    done
-   #printf "${RTMA_FTP}"/'%s\n' "${REMOTE_FILES[@]}" \
+   #printf "${FTP_DIR}"/'%s\n' "${REMOTE_FILES[@]}" \
    #	   | xargs -P10  wget -q --cut-dirs 6 -c -i --directory-prefix=${1}  
 }
 
@@ -60,8 +60,8 @@ function download_pcp {
 	   indexed=`psql -A -t -h ${PG_HOST} -p${PG_PORT} -Udocker wfas -c "SELECT count(granule) from ${WORKSPACE}.pcp_granules where granule='${file}'"`;
       if [ "${indexed}" = "0" ]; then
       	wget  -q --cut-dirs 6 -xnH -c --directory-prefix=${1} -N  --no-parent \
-   	   ${RTMA_FTP}/${file}
-      	ogrinfo -q PG:"host=${PG_HOST} user=docker password=docker dbname=wfas port=${PG_PORT}" \
+   	   ${FTP_DIR}/${file}
+      	${OGR_PATH}/ogrinfo -q PG:"host='${PG_HOST}' user='docker' password='docker' dbname='wfas' port='${PG_PORT}'" \
 		-sql "INSERT into ${WORKSPACE}.pcp_granules values('${file}')"
       fi
    done
@@ -69,9 +69,9 @@ function download_pcp {
 
 function get_remote_files {
 #Build a list of files on the ftp server:
-for d in `curl -s --list-only ${RTMA_FTP}/|grep "^${FTP_DIR_PATTERN}"|sort` #a list of directories from ftp
-do 
-	for f in `curl -s --list-only ${RTMA_FTP}/${d}/ | grep "${FTP_FILE_PATTERN}$"|sort` #list varanl files in each directory
+for d in `curl -s --list-only ${FTP_DIR}/|grep "^${FTP_DIR_PATTERN}"|sort` #a list of directories from ftp
+do
+	for f in `curl -s --list-only ${FTP_DIR}/${d}/ | grep "${FTP_FILE_PATTERN}$"|sort` #list varanl files in each directory
 	do 
 		REMOTE_FILES+=(`echo ${d}/${f}`) #add element to array
 	done
@@ -89,7 +89,7 @@ do
    #Unless we have the Rel Humidity (rhm) dataset, 
    #which is derived from varanl data:
    if [ ! ${d} = 'rhm' ] ; then
-      download_${d} $FILE_DIR/grb
+      download_${d} $FILE_DIR/granules
    fi
    
    (( counter++ ))
@@ -106,28 +106,35 @@ do
    FILE_DIR=${RTMA_DIR}/${EXTRACT_FROM[${counter}]}
    dataset=${EXTRACT_FROM[${counter}]}
    #Sorted list of locally stored Grib files:
-   CUR_FILES=(`find ${FILE_DIR}/grb -type f |sort`)
+   CUR_FILES=(`find ${FILE_DIR}/granules -type f |sort`)
    if [ ${var} = 'tp' ]; then
 	   dtype='Float32'
+	   replace_pattern="pcp.184.grb2"
    else
 	   dtype='Int16'
+	   replace_pattern="2dvaranl_ndfd.grb2_wexp"
    fi
    for i in ${CUR_FILES[@]}
    do
       f=`echo ${i}|rev|cut -d '/' -f 1,2|rev` #get last two tokens, containing dir and file name
-      if [ ! -f ${FILE_DIR}/tif/${var}/${f} ]; then
+      f=${f/$replace_pattern/tif} #replace any mention of grb with tif extension
+      if [ ! -f ${FILE_DIR}/${var}/${f} ]; then
         dirname=`echo ${i}|rev|cut -d '/' -f 2|rev`
-        mkdir -p ${FILE_DIR}/tif/${var}/${dirname}
+        mkdir -p ${FILE_DIR}/${var}/${dirname}
 	if [ ${DERIVED[${counter}]} = 1 ]; then
-		${FUNCTION[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
+		${FUNCTION[${counter}]} ${i} ${FILE_DIR}/${var}/${f}
 	else
-		gdal_translate -q -of GTiff -ot ${dtype} ${GEOTIFF_OPTIONS} -a_srs "${PROJ4_SRS}" \
-			-b ${BAND[${counter}]} ${i} ${FILE_DIR}/tif/${var}/${f}
+		${GDAL_PATH}/gdal_translate -q -of GTiff -ot ${dtype} ${GEOTIFF_OPTIONS} -a_srs "${PROJ4_SRS}" \
+			-b ${BAND[${counter}]} ${i} ${FILE_DIR}/${var}/${f}
 	fi
-	find ${FILE_DIR}/tif/${var} -name '*.aux.xml' -delete
+	#Replace the word GRIB in binary files
+	#This is to ensure that the NetCDF plugin
+	#doesn't pick up the mosaic as GRIB files:
+	find ${FILE_DIR}/${var} -name '*.tif' \
+		-exec sed -i -e 's/GRIB/GDAL/' {} \;
 	#add new file to mosaic:
 	curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -XPOST \
-		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/tif/${var}/${f} \
+		-H "Content-type: text/plain" -d "file://"${FILE_DIR}/${var}/${f} \
 	       	"${REST_URL}/${WORKSPACE}/coveragestores/${WORKSPACE}_${var}/external.imagemosaic"
       fi
    done
@@ -165,7 +172,7 @@ do
    done
 
    #Remove empty directories:
-   find ${FILE_DIR}/tif/${var} -empty -type d -name "${FILE_PREFIX}.*" -delete
+   find ${FILE_DIR}/${var} -empty -type d -name "${FILE_PREFIX}.*" -delete
    (( counter++ ))
 done
 }
@@ -176,9 +183,9 @@ do
    #RTMA grib files local storage locations:
    FILE_DIR=${RTMA_DIR}/${d}
    #Remove GRIB files:
-   find ${FILE_DIR}/grb -type f -name '*grb*' -delete
+   find ${FILE_DIR}/granules -type f -name '*grb*' -delete
    #Remove empty directories:
-   find ${FILE_DIR}/grb -empty -type d -name "${FTP_DIR_PATTERN}.*" -delete
+   find ${FILE_DIR}/granules -empty -type d -name "${FTP_DIR_PATTERN}.*" -delete
 done
 }
 
