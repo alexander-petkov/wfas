@@ -166,7 +166,10 @@ function update_geoserver {
       remove_files_from_mosaic ${c}
       #2. Move new granules in place:
       mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
-      #3.Re-index mosaic:
+      #3. Remove the word GRIB from binary files:
+      find ${FILE_DIR}/tif -name '*.tif' \
+              -exec sed -i -e 's/GRIB/GDAL/' {} \;
+      #4. Re-index mosaic:
       find ${FILE_DIR}/tif -name '*.tif' \
 	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" \
 	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${c}/external.imagemosaic" \;
