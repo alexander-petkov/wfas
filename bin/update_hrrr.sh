@@ -123,8 +123,11 @@ do
    find ${FILE_DIR} -empty -type f -delete ;
 #2. Move new granules in place:
    mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
+#3. Remove the word GRIB from binary files:
+   find ${FILE_DIR}/tif -name '*.tif' \
+              -exec sed -i -e 's/GRIB/GDAL/' {} \;
    rm ${FILE_DIR}/tif/*.tif.aux.xml
-#3.Re-index mosaic:
+#4.Re-index mosaic:
    find ${FILE_DIR}/tif -name '*.tif' -exec \
 	   curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" -d "file://"{}  \
 	      "${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic" \;
