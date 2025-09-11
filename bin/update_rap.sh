@@ -84,7 +84,7 @@ function derive_precip {
 #1. Input Grib file
 #2. Output file name 
 function derive_wspd {
-   gdal_calc.py --quiet --format=GTiff -A ${1} -B ${1} \
+   ${GDAL_PATH}/gdal_calc.py --quiet --format=GTiff -A ${1} -B ${1} \
       --A_band=3 --B_band=4 \
       --type=Float32 --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
       --calc='sqrt(A*A+B*B)' \
@@ -92,14 +92,15 @@ function derive_wspd {
 }
 
 #FUNCTION: derive_rh
-#Derivesrelative humidity 
+#Derives relative humidity 
 #from dewpoint and temperature at 2m.
 #Called from: make_geotiffs
 #Input Arguments:
 #1. Input file with Dewpoint and Tempprature
 #2. Output file name 
 function derive_rh {
-   gdal_calc.py --quiet --format=GTiff --type Int16 ${GDAL_CALC_OPTIONS} \
+   ${GDAL_PATH}/gdal_calc.py --format=GTiff \
+      --type Int16 ${GDAL_CALC_OPTIONS} \
       --co=BLOCKXSIZE=128 --co=BLOCKYSIZE=128 \
       --calc='(exp(1.81+(A*17.27- 4717.31) / (A - 35.86))/exp(1.81+(B*17.27- 4717.31) / (B - 35.86)))*100' \
       --outfile=${2} \
@@ -156,14 +157,14 @@ function make_geotiffs {
 	   -ot Float32 -of GTiff \
 	   -b ${BAND[${counter}]} ${GEOTIFF_OPTIONS} \
            -t_srs wgs84 \
-	   -te -180.0000000 -10.6531627 0 90 \
+	   -te -179.9900000 -10.6531627 0 89.99 \
 	   ${1} ${FILE_DIR}/${date}.tif
       else
 	#send input and output file names as arguments 1 and 2:
 	${FUNCTION[${counter}]} ${1} ${FILE_DIR}/${date}.tif.tmp
 	${GDAL_PATH}/gdalwarp -q -overwrite -t_srs WGS84 \
-		-te -180.0000000 -10.6531627 0 90 \
-		${GEOTIFF_OPTIONS} -overwrite \
+		-te -179.9900000 -10.6531627 0 89.99 \
+		${GEOTIFF_OPTIONS} \
 		${FILE_DIR}/${date}.tif.tmp \
 		${FILE_DIR}/${date}.tif
       fi
@@ -184,8 +185,11 @@ function update_geoserver {
       #remove granules from mosaic catalog:
       remove_files_from_mosaic ${c}
       #2. Move new granules in place:
-      mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
-      #3.Re-index mosaic:
+      mv --force ${FILE_DIR}/*.tif ${FILE_DIR}/tif/.
+      #3. Replace GRIB in binary files:
+      find ${FILE_DIR}/tif -name '*.tif' \
+	      -exec sed -i -e 's/GRIB/GDAL/' {} \;
+      #4. Re-index mosaic:
       find ${FILE_DIR}/tif -name '*.tif' \
 	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" \
 	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${c}/external.imagemosaic" \;
