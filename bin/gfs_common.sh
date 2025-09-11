@@ -1,4 +1,3 @@
-#!/bin/bash
 
 #get the path for this script:
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -15,9 +14,8 @@ RES='0p25' #quarter-degree resolution
 NOMADS_URL="https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_${RES}_1hr.pl"
 HOUR='t00z' #forecast hour
 #get latest forecast run:
-FORECAST=`curl -s -l https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/|cut -d '"' -f 2|cut -d '/' -f 1|grep 'gfs\.'|tail -n 1`
+FORECAST=`curl --http1.1 -s -l https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/|cut -d '"' -f 2|cut -d '/' -f 1|grep 'gfs\.'|tail -n 1`
 #END NOMADS Setup
-echo ${FORECAST}
 
 function derive_apcp {      
    for h in `seq 3 1 120 && seq 123 3 384`
@@ -32,19 +30,19 @@ function derive_apcp {
       date=`date -d ${t} +'%Y%m%d%H%M'`
       
       if (( $h==3 )); then
-         gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
+         ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
            -a_srs wgs84 -b 1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.nc \
            ${FILE_DIR}/${date}.tif
       elif (( $h>3 && $h<=120 )); then
 	  previous=$(printf "%03d" $(( h - 1 )) )
-	  gdal_calc.py --quiet -A ${1} --format=GTiff ${GDAL_CALC_OPTIONS} \
+	  ${GDAL_PATH}/gdal_calc.py --quiet --format=GTiff ${GDAL_CALC_OPTIONS} \
 		  -A ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.nc --A_band=2 \
 		  -B ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${previous}.nc --B_band=2 \
 		  --calc='(A-B)' \
 		  --outfile=${FILE_DIR}/${date}.tif
       elif (( $h>=123 && $h<=384 )); then
 	  previous=$(printf "%03d" $(( h - 3 )) )
-	  gdal_calc.py --quiet -A ${1} --format=GTiff ${GDAL_CALC_OPTIONS} \
+	  ${GDAL_PATH}/gdal_calc.py --quiet --format=GTiff ${GDAL_CALC_OPTIONS} \
 		  -A ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.nc --A_band=2 \
 		  -B ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${previous}.nc --B_band=2 \
 		  --calc='(A-B)' \
@@ -66,7 +64,7 @@ function derive_wdir {
 	   ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
          t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
          date=`date  -d $t +'%Y%m%d%H%M'` 
-         gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS}  -a_srs wgs84 -b 1 \
+         ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS}  -a_srs wgs84 -b 1 \
 	   ${GFS_DIR}/WDIR/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
 	   ${GFS_DIR}/WDIR/${date}.tif
       fi
@@ -83,7 +81,7 @@ function derive_wspd {
 	   ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
          t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
          date=`date  -d $t +'%Y%m%d%H%M'` 
-         gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
+         ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
 	   ${GFS_DIR}/WSPD/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
 	   ${GFS_DIR}/WSPD/${date}.tif
       fi
@@ -102,7 +100,7 @@ function derive_tcdc {
             ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
 	  t=`cdo -s showtimestamp -seltimestep,1 ${GFS_DIR}/TCDC/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
 	  date=`date  -d $t +'%Y%m%d%H%M'`
-          gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
+          ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
 	     NETCDF:"${GFS_DIR}/TCDC/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc":tcc_2 \
 	     ${GFS_DIR}/TCDC/${date}.tif
       fi
@@ -126,7 +124,7 @@ function compute_solar {
 	      --num-threads 6 --day ${day} --month ${month} \
 	      --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
 	      ${ELEV_FILE} ${GFS_DIR}/${1}/${filename}.asc
-      	gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
+      	${GDAL_PATH}/gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
 	      ${GFS_DIR}/${1}/${filename}.asc ${GFS_DIR}/${1}/${filename}.tif
       	rm ${GFS_DIR}/${1}/${filename}.{asc,prj}
       fi
@@ -182,7 +180,7 @@ function download_data {
 	       if  [ ${d} != 'UGRD' ] && [ ${d} != 'VGRD' ]; then
                   t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
                   date=`date -d ${t} +'%Y%m%d%H%M'` 
-                  gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
+                  ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
 		     -a_srs wgs84 -b 1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc \
 		     ${FILE_DIR}/${date}.tif
 	       fi
@@ -215,9 +213,12 @@ do
    rm ${FILE_DIR}/*.nc ;
 #2. Move new granules in place:
    mv ${FILE_DIR}/*.tif* ${FILE_DIR}/tif/.
+#3. Remove the word GRIB from binary files:
+   find ${FILE_DIR}/tif -name '*.tif' \
+	   -exec sed -i -e 's/GRIB/GDAL/' {} \;
    #remove old granules from system:
-#3.Re-index mosaic:
-   find ${GFS_DIR}/${d}/tif -name '*.tif' \
+#4. Re-index mosaic:
+   find ${FILE_DIR}/tif -name '*.tif' \
 	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" \
 	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic" \;
 done
