@@ -30,10 +30,16 @@ sfdi  = {'SFDI Day ' + str(i) : v
 
 sa = {'Elevation': '/mnt/cephfs/wfas/data/gmted/SouthAmerica_30arcsec_DEM_GMTED2010_Masked.tif',
         'Landform' : '/mnt/cephfs/wfas/data/sar/SA_Landforms_GEE.tif',
+        'Landcover' : '/mnt/cephfs/wfas/data/sar/landcover100m/sa_landcover_100m.vrt', 
         'Slope' : '/mnt/cephfs/wfas/data/gmted/wfas_SouthAmerica_30arcsec_Slope_GMTED2010_Masked_WGS84.tif',
         **erc,
         **bi, 
         **sfdi
        }
 
-regions = {"CONUS": conus, "South America": sa}
+nwaf = {'Elevation': '/mnt/cephfs/wfas/data/naf/NWAF_DEM.tif',
+        'Landform' : '/mnt/cephfs/wfas/data/naf/NWAF_LANDFORM_WGS84.tif',
+        'Landcover' : '/mnt/cephfs/wfas/data/naf/NWAF_LC100m.tif',
+        'Slope' : '/mnt/cephfs/wfas/data/naf/NWAF_Slope_WGS84.tif'
+        }
+regions = {"CONUS": conus, "South America": sa, "Northwestern Africa":nwaf}
