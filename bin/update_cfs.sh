@@ -29,7 +29,7 @@ CFS_DIR="${DATA_DIR}/cfs"
 #1. Input Grib file
 #2. Output file name 
 function derive_prate {
-   gdal_calc.py --format=GTiff -A ${1} -B ${1} \
+   ${GDAL_PATH}/gdal_calc.py --format=GTiff -A ${1} -B ${1} \
       --A_band=31 \
       --type=Float32 --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
       --calc='A*6*60*60' \
@@ -43,7 +43,7 @@ function derive_prate {
 #1. Input Grib file
 #2. Output file name 
 function derive_wdir {
-   gdal_calc.py --format=GTiff -A ${1} -B ${1} \
+   ${GDAL_PATH}/gdal_calc.py --format=GTiff -A ${1} -B ${1} \
       --A_band=36 --B_band=37 \
       --type=Float32 --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
       --calc='where(57.3*arctan2(-1*A,-1*B)<0,360+(57.3*arctan2(-1*A,-1*B)),57.3*arctan2(-1*A,-1*B))' \
@@ -57,7 +57,7 @@ function derive_wdir {
 #1. Input Grib file
 #2. Output file name 
 function derive_wspd {
-   gdal_calc.py --format=GTiff -A ${1} -B ${1} \
+   ${GDAL_PATH}/gdal_calc.py --overwrite --format=GTiff -A ${1} -B ${1} \
       --A_band=36 --B_band=37 \
       --type=Float32 --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
       --calc='sqrt(A*A+B*B)' \
@@ -72,19 +72,19 @@ function derive_wspd {
 #1. Input Grib file
 #2. Output file name 
 function derive_rh {
-   gdal_calc.py --format=GTiff --type=Int16 \
+   ${GDAL_PATH}/gdal_calc.py --overwrite --format=GTiff --type=Int16 \
       --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
       -A ${1} --A_band=38 \
       -B ${1} --B_band=40 \
       -C ${1} --C_band=39 \
       --calc='( C * B / (0.378 * C + 0.622))/(6.112 * exp((17.67 * (A-273.15))/(A-29.65)))' \
       --outfile=${FILE_DIR}/rh.tmp
-   gdal_calc.py --format=GTiff --type=Int16 \
+   ${GDAL_PATH}/gdal_calc.py --overwrite --format=GTiff --type=Int16 \
       --NoDataValue=-9999 ${GDAL_CALC_OPTIONS} \
       -A ${FILE_DIR}/rh.tmp --A_band=1 \
       --calc="where(A>100,100,(where(A<0,0,A)))" \
       --outfile=${2}
-   rm ${FILE_DIR}/rh.tmp
+   rm -f ${FILE_DIR}/rh.tmp
 }
 
 function remove_files_from_mosaic {
@@ -135,20 +135,22 @@ function make_geotiffs {
       FILE_DIR=${CFS_DIR}/${c}
       t=`cdo -s showtimestamp -seltimestep,1 ${1}`
       date=`date -d ${t} +'%Y%m%d%H%M'`
-      if [ ${DERIVED[${counter}]} = 0 ] ; then
-	 gdal_translate -q -ot Int16 -of GTiff \
+      if [ ${DERIVED[${counter}]} = 0 ]; then
+	 ${GDAL_PATH}/gdal_translate -q -ot Int16 -of GTiff \
 	   -b ${BAND[${counter}]} ${GEOTIFF_OPTIONS} \
            -a_srs wgs84 ${1} ${FILE_DIR}/${date}.tif.tmp
       else
+      echo "After else in make_geotiffs"
 	#send input and output file names as arguments 1 and 2:
 	${FUNCTION[${counter}]} ${1} ${FILE_DIR}/${date}.tif.tmp
+      echo "Before fi in make_geotiffs"
       fi
       #transform result from 0-360 to -180 to 180 deg space:
       cp ${CFS_DIR}/template.vrt ${FILE_DIR}/${date}.vrt
       sed -i -e 's/to_replace/'${date}'.tif.tmp/' ${FILE_DIR}/${date}.vrt
-      gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
+      ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} \
 	${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif
-      rm ${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif.tmp ${FILE_DIR}/${date}*.aux.xml
+      rm -f ${FILE_DIR}/${date}.vrt ${FILE_DIR}/${date}.tif.tmp ${FILE_DIR}/${date}*.aux.xml
       (( counter++ ))
    done
 }

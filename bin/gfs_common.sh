@@ -3,11 +3,13 @@
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 source ${DIR}/globals.env
 
-DATASETS=('UGRD'  'VGRD'  'APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WSPD' 'SOLAR') 
-COVERAGES=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WSPD' 'SOLAR') 
+DATASETS=('UGRD'  'VGRD'  'APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WSPD' 'DSWRF') 
+COVERAGES=('APCP'  'RH'  'TCDC'  'TMP'  'WDIR'  'WSPD' 'DSWRF') 
 DERIVED=(0 0 1 0 1 0 1 1 1) #is the dataset downloaded, or derived from other variables?
-FUNCTION=('' '' 'derive_apcp' '' 'derive_tcdc' '' 'derive_wdir' 'derive_wspd' 'compute_solar') 
-LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' '2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' 'surface')
+FUNCTION=('' '' 'derive_apcp' '' 'derive_tcdc' '' 'derive_wdir' 'derive_wspd' 'derive_solar') 
+LEVEL=('10_m_above_ground' '10_m_above_ground' 'surface' \
+	'2_m_above_ground' 'entire_atmosphere' '2_m_above_ground' \
+	'' '' 'surface')
 
 #NOMADS setup:
 RES='0p25' #quarter-degree resolution
@@ -49,6 +51,25 @@ function derive_apcp {
 		  --outfile=${FILE_DIR}/${date}.tif
       fi
       sleep 1
+   done
+}
+
+function derive_apcp_new {      
+   for h in `seq 3 1 120 && seq 123 3 384`
+   do
+      current=$(printf "%03d" ${h})
+      wget -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${current}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
+	-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.tmp;
+      #rewrite the grid from 0-360 to -180 180 lon range:
+      cdo -s -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.tmp \
+        ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.nc;
+      t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.nc`
+      date=`date -d ${t} +'%Y%m%d%H%M'`
+      
+	${GDAL_PATH}/gdal_calc.py --quiet --format=GTiff ${GDAL_CALC_OPTIONS} \
+		  -A ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${current}.nc --A_band=1 \
+		  --calc='(A*3600)' \
+		  --outfile=${FILE_DIR}/${date}.tif
    done
 }
 
@@ -103,6 +124,30 @@ function derive_tcdc {
           ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
 	     NETCDF:"${GFS_DIR}/TCDC/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc":tcc_2 \
 	     ${GFS_DIR}/TCDC/${date}.tif
+	  rm -f ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
+		  ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
+      fi
+      sleep 1
+   done
+}
+
+function derive_solar { 
+   for h in `seq -w 001 1 122`
+   do
+       wget -q "${NOMADS_URL}?file=gfs.${HOUR}.pgrb2.${RES}.f${h}&lev_${LEVEL[$counter]}=on&var_${d}=on&${SUBREGION}&dir=%2F${FORECAST}%2F00%2Fatmos" \
+		-O ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp;
+      if [ -s ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp ]  
+      then
+	 #rewrite the grid from 0-360 to -180 180 lon range:
+         cdo -s -f nc setgrid,${GFS_DIR}/mygrid -copy ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
+            ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc;
+	  t=`cdo -s showtimestamp -seltimestep,1 ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc`
+	  date=`date  -d $t +'%Y%m%d%H%M'`
+          ${GDAL_PATH}/gdal_translate -q -of GTiff ${GEOTIFF_OPTIONS} -a_srs wgs84 \
+	     NETCDF:"${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc":dswrf \
+	     ${FILE_DIR}/${date}.tif
+	  rm -f ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.tmp \
+		  ${FILE_DIR}/gfs.${HOUR}.pgrb2.${RES}.f${h}.nc
       fi
       sleep 1
    done
@@ -120,13 +165,15 @@ function compute_solar {
       	day=${filename:6:2}
       	month=${filename:4:2}
       	year=${filename:0:4}
+	export GDAL_DRIVER_PATH=/mnt/cephfs/miniconda3/lib/gdalplugins
       	solar_grid --cloud-file ${cloud_file} \
 	      --num-threads 6 --day ${day} --month ${month} \
 	      --year ${year} --minute ${minute} --hour ${hour} --time-zone UTC \
 	      ${ELEV_FILE} ${GFS_DIR}/${1}/${filename}.asc
+	export GDAL_DRIVER_PATH=/mnt/cephfs/miniconda3/envs/gdal-3.10.1/lib/gdalplugins
       	${GDAL_PATH}/gdal_translate -q -ot Int16 -of GTiff ${GEOTIFF_OPTIONS} \
 	      ${GFS_DIR}/${1}/${filename}.asc ${GFS_DIR}/${1}/${filename}.tif
-      	rm ${GFS_DIR}/${1}/${filename}.{asc,prj}
+      	rm ${GFS_DIR}/${1}/${filename}.{asc,prj} 
       fi
    done
 }
@@ -200,7 +247,7 @@ function update_geoserver {
 #and new GTiff granules derived 
 #in previous loop.
 #Now update mosaics:
-for d in ${DATASETS[@]}
+for d in ${COVERAGES[@]}
 do 
 #1. Clear old granules from Geoserver's catalog and file system:
    #GFS files local storage locations:
@@ -220,6 +267,6 @@ do
 #4. Re-index mosaic:
    find ${FILE_DIR}/tif -name '*.tif' \
 	   -exec curl -s -u ${GEOSERVER_USERNAME}:${GEOSERVER_PASSWORD} -H "Content-type: text/plain" \
-	   -d "file://"{}  "${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic" \;
+	   -d {}  "${REST_URL}/${WORKSPACE}/coveragestores/${d}/external.imagemosaic" \;
 done
 }
